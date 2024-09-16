@@ -19,6 +19,7 @@
 #include <rte_ip.h>
 #include <rte_udp.h>
 
+#include "tester.h"
 
 
 int init(char **list){
@@ -65,15 +66,24 @@ int init(char **list){
 	} else { std::cout << "PORT NOT OK" << std::endl; }
 	//rte_eal_mp_wait_lcore();
 
-
-	/* clean up the EAL */
-	rte_eal_cleanup();
 	return 0;
+}
+
+void cleanup(){
+	/* clean up the EAL */
+	std::cout << "Cleanup called" << std::endl;
+	rte_eal_cleanup();
+
 }
 
 int main(int argc, char **argv){
 	std::cout << "STARTED" << std::endl;
     init(argv);
 
+	Tester tester;
+	tester.create_package();
+
+	cleanup();
+	std::cout << "Program ended" << std::endl;
 	return 0;
 }
