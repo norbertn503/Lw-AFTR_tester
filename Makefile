@@ -7,7 +7,7 @@ APP = lw4o6_tester
 CC = g++
 
 # all source are stored in SRCS-y
-SRCS-y := main.cpp tester.cpp
+SRCS-y := main.cpp tester.cpp Measurement.cpp
 
 PKGCONF ?= pkg-config
 
