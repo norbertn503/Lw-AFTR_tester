@@ -19,22 +19,10 @@
 #include <rte_ip.h>
 #include <rte_udp.h>
 
-#include "tester.h"
-#include "Measurement.h"
-
-
-
-
 
 int main(int argc, char **argv){
 	std::cout << "MAIN STARTED" << std::endl;
     //init(argv);
-	Measurement ms;
-	ms.init(argv);
-	Tester tester;
-	tester.create_package();
-	ms.cleanup();
-	//cleanup();
-	std::cout << "Program ended" << std::endl;
+	
 	return 0;
 }
