@@ -11,23 +11,23 @@ Throughput::Throughput(){
   forward = 1;                   // default value, forward direction is active
   reverse = 1;                   // default value, reverse direction is active
   promisc = 0;                   // default value, promiscuous mode is inactive
-  left_sender_cpu = -1;          // MUST be set in the config file if forward != 0
-  right_receiver_cpu = -1;       // MUST be set in the config file if forward != 0
-  right_sender_cpu = -1;         // MUST be set in the config file if reverse != 0
-  left_receiver_cpu = -1;        // MUST be set in the config file if reverse != 0
+  cpu_fw_send = -1;          // MUST be set in the config file if forward != 0
+  cpu_rv_receive = -1;       // MUST be set in the config file if forward != 0
+  cpu_rv_send = -1;         // MUST be set in the config file if reverse != 0
+  cpu_fw_receive = -1;        // MUST be set in the config file if reverse != 0
   memory_channels = 1;           // default value, this value will be set, if not specified in the config file
   fwd_var_sport = 3;             // default value: use pseudorandom change for the source port numbers in the forward direction
   fwd_var_dport = 3;             // default value: use pseudorandom change for the destination port numbers in the forward direction
-  fwd_dport_min = 1;             // default value: as recommended by RFC 4814
-  fwd_dport_max = 49151;         // default value: as recommended by RFC 4814
   rev_var_sport = 3;             // default value: use pseudorandom change for the source port numbers in the reverse direction
   rev_var_dport = 3;             // default value: use pseudorandom change for the destination port numbers in the reverse direction
+  fwd_dport_min = 1;             // default value: as recommended by RFC 4814
+  fwd_dport_max = 49151;         // default value: as recommended by RFC 4814
   rev_sport_min = 1024;          // default value: as recommended by RFC 4814
   rev_sport_max = 65535;         // default value: as recommended by RFC 4814
-  bg_sport_min = 1024;           // default value: as recommended by RFC 4814
-  bg_sport_max = 65535;          // default value: as recommended by RFC 4814
-  bg_dport_min = 1;              // default value: as recommended by RFC 4814
-  bg_dport_max = 49151;          // default value: as recommended by RFC 4814
+  bg_fw_dport_min = 1;              // default value: as recommended by RFC 4814
+  bg_fw_dport_max = 49151;          // default value: as recommended by RFC 4814
+  bg_rv_sport_min = 1024;           // default value: as recommended by RFC 4814
+  bg_rv_sport_max = 65535;          // default value: as recommended by RFC 4814
   
   
 
@@ -35,13 +35,535 @@ Throughput::Throughput(){
   //dmr_ipv6 = IN6ADDR_ANY_INIT;  
   //fwUniqueEAComb = NULL;         
   //rvUniqueEAComb = NULL;                                    
-  fwCE = NULL;                  
-  rvCE = NULL;                  
+  //fwCE = NULL;                  
+  //rvCE = NULL;                  
+};
+
+// reports the TSC of the core (in the variable pointed by the input parameter), on which it is running
+int report_tsc(void *par)
+{
+  *(uint64_t *)par = rte_rdtsc();
+  return 0;
+}
+
+// checks if the TSC of the given lcore is synchronized with that of the main core
+// Note that TSCs of different pysical CPUs may be different, which would prevent siitperf from working correctly!
+void check_tsc(int cpu, const char *cpu_name) {
+  uint64_t tsc_before, tsc_reported, tsc_after;
+
+  tsc_before = rte_rdtsc();
+  if ( rte_eal_remote_launch(report_tsc, &tsc_reported, cpu) )
+    rte_exit(EXIT_FAILURE, "Error: could not start TSC checker on core #%i for %s!\n", cpu, cpu_name);
+  rte_eal_wait_lcore(cpu);
+  tsc_after = rte_rdtsc();
+  if ( tsc_reported < tsc_before || tsc_reported > tsc_after )
+    rte_exit(EXIT_FAILURE, "Error: TSC of core #%i for %s is not synchronized with that of the main core!\n", cpu, cpu_name);
+}
+
+class randomPermutationGeneratorParameters48 {
+  public:
+    uint64_t hz;
+    const char *direction;
+    uint8_t ip4_suffix_length;
+    uint8_t psid_length;
 };
 
 
+// finds a 'key' (name of a parameter) in the 'line' string
+// '#' means comment, leading spaces and tabs are skipped
+// return: the starting position of the key, if found; -1 otherwise
+int Throughput::findKey(const char *line, const char *key) {
+  int line_len, key_len; // the lenght of the line and of the key
+  int pos; // current position in the line
+
+  line_len=strlen(line);
+  key_len=strlen(key);
+  for ( pos=0; pos<line_len-key_len; pos++ ) {
+    if ( line[pos] == '#' ) // comment
+      return -1;
+    if ( line[pos] == ' ' || line[pos] == '\t' )
+      continue;
+    if ( strncmp(line+pos,key,key_len) == 0 )
+      return pos+strlen(key);
+  }
+  return -1;
+}
+
+// skips leading spaces and tabs, and cuts off tail starting by a space, tab or new line character
+// it is needed, because inet_pton cannot read if there is e.g. a trailing '\n'
+// WARNING: the input buffer is changed!
+char *prune(char *s) {
+  int len, i;
+ 
+  // skip leading spaces and tabs 
+  while ( *s==' ' || *s=='\t' )
+    s++;
+
+  // trim string, if space, tab or new line occurs
+  len=strlen(s);
+  for ( i=0; i<len; i++ )
+    if ( s[i]==' ' || s[i]=='\t' || s[i]=='\n' ) {
+      s[i]=(char)0;
+      break;
+    }
+  return s;
+}
+
+// checks if there is some non comment information in the line
+int nonComment(const char *line) {
+  int i;
+
+  for ( i=0; i<LINELEN; i++ ) {
+    if ( line[i]=='#' || line[i]=='\n' )
+      return 0; // line is comment or empty 
+    else if ( line[i]==' ' || line[i]=='\t' )
+      continue; // skip space or tab, see next char
+    else
+      return 1; // there is some other character
+  }
+  // below code should be unreachable
+  return 1;
+}
+
+int Throughput::readConfigFile(const char *filename) {
+  FILE *f; 	// file descriptor
+  char line[LINELEN+1]; // buffer for reading a line of the input file
+  int pos; 	// position in the line after the key (parameter name) was found
+  uint8_t *m; 	// pointer to the MAC address being read
+  int line_no;	// line number for error message
+
+  f=fopen(filename,"r");
+  if ( f == NULL ) {
+    std::cerr << "Input Error: Can't open file '" << filename << "'." << std::endl;
+    return -1;
+  }
+  
+  for ( line_no=1; fgets(line, LINELEN+1, f); line_no++ ) {
+    if ( (pos = findKey(line, "Tester-BG-Send-IPv6")) >= 0 ) {
+      if ( inet_pton(AF_INET6, prune(line+pos), reinterpret_cast<void *>(&tester_bg_send_ipv6)) != 1 ) {
+        std::cerr << "Input Error: Bad 'Tester-BG-Send-IPv6' address." << std::endl;
+        return -1;
+      }
+    } else if ( (pos = findKey(line, "Tester-BG-Receive-IPv6")) >= 0 ) {
+      if ( inet_pton(AF_INET6, prune(line+pos), reinterpret_cast<void *>(&tester_bg_rec_ipv6)) != 1 ) {
+        std::cerr << "Input Error: Bad 'Tester-BG-Receive-IPv6' address." << std::endl;
+        return -1;
+      }
+    } else if ( (pos = findKey(line, "Tester-FW-Receive-IPv4")) >= 0 ) {
+      if ( inet_pton(AF_INET, prune(line+pos), reinterpret_cast<void *>(&tester_fw_rec_ipv4)) != 1 ) {
+        std::cerr << "Input Error: Bad 'Tester-FW-Receive-IPv4' address." << std::endl;
+        return -1;
+      }
+    } else if ( (pos = findKey(line, "Tester-FW-Receive-IPv6")) >= 0 ) {
+      if ( inet_pton(AF_INET6, prune(line+pos), reinterpret_cast<void *>(&tester_fw_rec_ipv6)) != 1 ) {
+         std::cerr << "Input Error: Bad 'Tester-FW-Receive-IPv6' address." << std::endl;
+        return -1;
+      } 
+    } else if ( (pos = findKey(line, "TESTER-FW-MAC")) >= 0 ) {
+      m=tester_fw_mac;
+      if ( sscanf(line+pos, "%hhx:%hhx:%hhx:%hhx:%hhx:%hhx", &m[0], &m[1], &m[2], &m[3], &m[4], &m[5]) < 6 ) {
+        std::cerr << "Input Error: Bad 'TESTER-FW-MAC' address." << std::endl;
+        return -1;
+      } 
+    } else if ( (pos = findKey(line, "TESTER-RV-MAC")) >= 0 ) {
+      m=tester_rv_mac;
+      if ( sscanf(line+pos, "%hhx:%hhx:%hhx:%hhx:%hhx:%hhx", &m[0], &m[1], &m[2], &m[3], &m[4], &m[5]) < 6 ) {
+        std::cerr << "Input Error: Bad 'TESTER-RV-MAC' address." << std::endl;
+        return -1;
+      }
+    } else if ( (pos = findKey(line, "DUT-FW-MAC")) >= 0 ) {
+      m=dut_fw_mac;
+      if ( sscanf(line+pos, "%hhx:%hhx:%hhx:%hhx:%hhx:%hhx", &m[0], &m[1], &m[2], &m[3], &m[4], &m[5]) < 6 ) {
+        std::cerr << "Input Error: Bad 'DUT-FW-MAC' address." << std::endl;
+        return -1;
+      }
+    } else if ( (pos = findKey(line, "DUT-RV-MAC")) >= 0 ) {
+      m=dut_rv_mac;
+      if ( sscanf(line+pos, "%hhx:%hhx:%hhx:%hhx:%hhx:%hhx", &m[0], &m[1], &m[2], &m[3], &m[4], &m[5]) < 6 ) {
+        std::cerr << "Input Error: Bad 'DUT-RV-MAC' address." << std::endl;
+        return -1;
+      }
+    } else if ( (pos = findKey(line, "Forward")) >= 0 ) {
+      sscanf(line+pos, "%d", &forward);
+      if (!(forward == 0 || forward == 1))
+      {
+        std::cerr << "Input Error: 'Forward' must be either 0 for inactive or 1 for active." << std::endl;
+        return -1;
+      }
+    } else if ( (pos = findKey(line, "Reverse")) >= 0 ) {
+      sscanf(line+pos, "%d", &reverse);
+      if (!(reverse == 0 || reverse == 1))
+      {
+        std::cerr << "Input Error: 'Reverse' must be either 0 for inactive or 1 for active." << std::endl;
+        return -1;
+      }
+    } else if ( (pos = findKey(line, "Promisc")) >= 0 ) {
+      sscanf(line+pos, "%d", &promisc);
+      if (!(promisc == 0 || promisc == 1))
+      {
+        std::cerr << "Input Error: 'Promisc' must be either 0 for inactive or 1 for active." << std::endl;
+        return -1;
+      }
+    } else if ( (pos = findKey(line, "CPU-FW-Send")) >= 0 ) {
+      sscanf(line+pos, "%d", &cpu_fw_send);
+      if ( cpu_fw_send < 0 || cpu_fw_send >= RTE_MAX_LCORE ) {
+        std::cerr << "Input Error: 'CPU-FW-Send' must be >= 0 and < RTE_MAX_LCORE." << std::endl;
+        return -1;
+      }
+    } else if ( (pos = findKey(line, "CPU-RV-Receive")) >= 0 ) {
+      sscanf(line+pos, "%d", &cpu_rv_receive);
+      if ( cpu_rv_receive < 0 || cpu_rv_receive >= RTE_MAX_LCORE ) {
+        std::cerr << "Input Error: 'CPU-RV-Receive' must be >= 0 and < RTE_MAX_LCORE." << std::endl;
+        return -1;
+      }
+    } else if ( (pos = findKey(line, "CPU-RV-Send")) >= 0 ) {
+      sscanf(line+pos, "%d", &cpu_rv_send);
+      if ( cpu_rv_send < 0 || cpu_rv_send >= RTE_MAX_LCORE ) {
+        std::cerr << "Input Error: 'CPU-RV-Send' must be >= 0 and < RTE_MAX_LCORE." << std::endl;
+        return -1;
+      }
+    } else if ( (pos = findKey(line, "CPU-FW-Receive")) >= 0 ) {
+      sscanf(line+pos, "%d", &cpu_fw_receive);
+      if ( cpu_fw_receive < 0 || cpu_fw_receive >= RTE_MAX_LCORE ) {
+        std::cerr << "Input Error: 'CPU-FW-Receive' must be >= 0 and < RTE_MAX_LCORE." << std::endl;
+        return -1;
+      }
+    } else if ( (pos = findKey(line, "MEM-Channels")) >= 0 ) {
+      sscanf(line+pos, "%hhu", &memory_channels);
+      if ( memory_channels <= 0 ) {
+        std::cerr << "Input Error: 'MEM-Channels' must be > 0." << std::endl;
+        return -1;
+      }
+    } else if ( (pos = findKey(line, "FW-var-sport")) >= 0 ) {
+      sscanf(line+pos, "%u", &fwd_var_sport);
+      if ( fwd_var_sport > 3 ) {
+        std::cerr << "Input Error: 'FW-var-sport' must be 0, 1, 2, or 3." << std::endl;
+        return -1;
+      }
+    } else if ( (pos = findKey(line, "FW-var-dport")) >= 0 ) {
+      sscanf(line+pos, "%u", &fwd_var_dport);
+      if ( fwd_var_dport > 3 ) {
+        std::cerr << "Input Error: 'FW-var-dport' must be 0, 1, 2, or 3." << std::endl;
+        return -1;
+      }
+    } else if ( (pos = findKey(line, "RV-var-sport")) >= 0 ) {
+      sscanf(line+pos, "%u", &rev_var_sport);
+      if ( rev_var_sport > 3 ) {
+        std::cerr << "Input Error: 'RV-var-sport' must be 0, 1, 2, or 3." << std::endl;
+        return -1;
+      }
+    } else if ( (pos = findKey(line, "RV-var-dport")) >= 0 ) {
+      sscanf(line+pos, "%u", &rev_var_dport);
+      if ( rev_var_dport > 3 ) {
+        std::cerr << "Input Error: 'RV-var-dport' must be 0, 1, 2, or 3." << std::endl;
+        return -1;
+      }
+    } else if ( (pos = findKey(line, "FW-dport-min")) >= 0 ) {
+      if ( sscanf(line+pos, "%u", &rev_sport_min) < 1 ) {
+        std::cerr << "Input Error: Unable to read 'FW-dport-min'." << std::endl;
+        return -1;
+      }
+    } else if ( (pos = findKey(line, "FW-dport-max")) >= 0 ) {
+      if ( sscanf(line+pos, "%u", &rev_sport_max) < 1 ) {
+        std::cerr << "Input Error: Unable to read 'FW-dport-max'." << std::endl;
+        return -1;
+      }
+    } else if ( (pos = findKey(line, "RV-sport-min")) >= 0 ) {
+      if ( sscanf(line+pos, "%u", &rev_sport_min) < 1 ) {
+        std::cerr << "Input Error: Unable to read 'RV-sport-min'." << std::endl;
+        return -1;
+      }
+    } else if ( (pos = findKey(line, "RV-sport-max")) >= 0 ) {
+      if ( sscanf(line+pos, "%u", &rev_sport_max) < 1 ) {
+        std::cerr << "Input Error: Unable to read 'RV-sport-max'." << std::endl;
+        return -1;
+      }
+    } else if ( (pos = findKey(line, "bg-FW-dport-min")) >= 0 ) {
+      if ( sscanf(line+pos, "%u", &bg_fw_dport_min) < 1 ) {
+        std::cerr << "Input Error: Unable to read 'bg-FW-dport-min'." << std::endl;
+        return -1;
+      }
+    } else if ( (pos = findKey(line, "bg-FW-dport-max")) >= 0 ) {
+      if ( sscanf(line+pos, "%u", &bg_fw_dport_max) < 1 ) {
+        std::cerr << "Input Error: Unable to read 'bg-FW-dport-max'." << std::endl;
+        return -1;
+      }
+    } else if ( (pos = findKey(line, "bg-RV-sport-min")) >= 0 ) {
+      if ( sscanf(line+pos, "%u", &bg_rv_sport_min) < 1 ) {
+        std::cerr << "Input Error: Unable to read 'bg-RV-sport-min'." << std::endl;
+        return -1;
+      }
+    } else if ( (pos = findKey(line, "bg-RV-sport-max")) >= 0 ) {
+      if ( sscanf(line+pos, "%u", &bg_rv_sport_max) < 1 ) {
+        std::cerr << "Input Error: Unable to read 'bg-RV-sport-max'." << std::endl;
+        return -1;
+      }
+    } else if ( (pos = findKey(line, "PSID_length")) >= 0 ) {
+      sscanf(line+pos, "%u", &psid_length);
+      if ( psid_length < 1 || psid_length > 10 ) {
+        std::cerr << "Input Error: 'PSID_length' must be >= 1 and <= 10." << std::endl;
+        return -1;
+      }
+    } else if ((pos = findKey(line, "NUM-OF-lwB4s")) >= 0){
+      sscanf(line + pos, "%u", &number_of_lwB4s);
+      if (number_of_lwB4s < 1 || number_of_lwB4s > 1000000)
+      {
+        std::cerr << "Input Error: 'NUM-OF-lwB4s' must be >= 1 and <= 1000000." << std::endl;
+        return -1;
+      }
+    } else if ( (pos = findKey(line, "DUT-FW-IPv6")) >= 0 ) {
+      if ( inet_pton(AF_INET6, prune(line+pos), reinterpret_cast<void *>(&aftr_fw_ipv6)) != 1 ) {
+         std::cerr << "Input Error: Bad 'DUT-FW-IPv6' address." << std::endl;
+        return -1;
+      } 
+    } else if ( (pos = findKey(line, "DUT-Tunnel-IPv6")) >= 0 ) {
+      if ( inet_pton(AF_INET6, prune(line+pos), reinterpret_cast<void *>(&aftr_ipv6_tunnel)) != 1 ) {
+         std::cerr << "Input Error: Bad 'DUT-Tunnel-IPv6' address." << std::endl;
+        return -1;
+      } 
+    } else if ( (pos = findKey(line, "LWB4-start-IPv4")) >= 0 ) {
+      if ( inet_pton(AF_INET, prune(line+pos), reinterpret_cast<void *>(&lwb4_start_ipv4)) != 1 ) {
+        std::cerr << "Input Error: Bad 'LWB4-start-IPv4' address." << std::endl;
+        return -1;
+      }
+    } else if ( (pos = findKey(line, "LWB4-end-IPv4")) >= 0 ) {
+      if ( inet_pton(AF_INET, prune(line+pos), reinterpret_cast<void *>(&lwb4_end_ipv4)) != 1 ) {
+        std::cerr << "Input Error: Bad 'LWB4-end-IPv4' address." << std::endl;
+        return -1;
+      }
+    } /*else if ( (pos = findKey(line, "IP-R-min")) >= 0 ) {
+      if ( sscanf(line+pos, "%i", &ip_right_min) < 1 ) { // read decimal or hexa (in 0x... format)
+        std::cerr << "Input Error: Unable to read 'IP-R-min' value." << std::endl;
+        return -1;
+      }
+    } else if ( (pos = findKey(line, "IP-R-max")) >= 0 ) {
+      if ( sscanf(line+pos, "%i", &ip_right_max) < 1 ) { // read decimal or hexa (in 0x... format)
+        std::cerr << "Input Error: Unable to read 'IP-R-max' value." << std::endl;
+        return -1;
+      }
+    } else if ( (pos = findKey(line, "IPv4-L-offset")) >= 0 ) {
+      sscanf(line+pos, "%u", &ipv4_left_offset);
+      if ( ipv4_left_offset < 1 || ipv4_left_offset > 2 ) {
+        std::cerr << "Input Error: 'IPv4-L-offset' must be 1 or 2." << std::endl;
+        return -1;
+      }
+    } else if ( (pos = findKey(line, "IPv6-L-offset")) >= 0 ) {
+      sscanf(line+pos, "%u", &ipv6_left_offset);
+      if ( ipv6_left_offset < 6 || ipv6_left_offset > 14 ) {
+        std::cerr << "Input Error: 'IPv6-L-offset' must be in the [6, 14] interval." << std::endl;
+        return -1;
+      }
+    } else if ( (pos = findKey(line, "IPv4-R-offset")) >= 0 ) {
+      sscanf(line+pos, "%u", &ipv4_right_offset);
+      if ( ipv4_right_offset < 1 || ipv4_right_offset > 2 ) {
+        std::cerr << "Input Error: 'IPv4-R-offset' must be 1 or 2." << std::endl;
+        return -1;
+      }
+    } else if ( (pos = findKey(line, "IPv6-R-offset")) >= 0 ) {
+      sscanf(line+pos, "%u", &ipv6_right_offset);
+      if ( ipv6_right_offset < 6 || ipv6_right_offset > 14 ) {
+        std::cerr << "Input Error: 'IPv6-R-offset' must be in the [6, 14] interval." << std::endl;
+        return -1;
+      }
+    } else if ( (pos = findKey(line, "Stateful")) >= 0 ) {
+      sscanf(line+pos, "%u", &stateful);
+      if ( stateful > 2 ) {
+        std::cerr << "Input Error: 'Stateful' must be 0, 1, or 2." << std::endl;
+        return -1;
+      }
+    } else if ( (pos = findKey(line, "Responder-tuples")) >= 0 ) {
+      sscanf(line+pos, "%u", &responder_tuples);
+      if ( responder_tuples > 3 ) {
+        std::cerr << "Input Error: 'Responder-tuples' must be 0, 1, 2, or 3." << std::endl;
+        return -1;
+      }
+    } else if ( (pos = findKey(line, "Enumerate-ports")) >= 0 ) {
+      sscanf(line+pos, "%u", &enumerate_ports);
+      if ( enumerate_ports > 3 ) {
+        std::cerr << "Input Error: 'Enumerate-ports' must be 0, 1, 2, or 3." << std::endl;
+        return -1;
+      }
+    } else if ( (pos = findKey(line, "Enumerate-ips")) >= 0 ) {
+      sscanf(line+pos, "%u", &enumerate_ips);
+      if ( enumerate_ips > 3 ) {
+        std::cerr << "Input Error: 'Enumerate-ips' must be 0, 1, 2, or 3." << std::endl;
+        return -1;
+      }
+    }*/else if ( nonComment(line) ) { // It may be too strict!
+        std::cerr << "Input Error: Cannot interpret '" << filename << "' line " << line_no << ":" << std::endl;
+        std::cerr << line << std::endl;
+        return -1;
+    } 
+  }
+  fclose(f);
+  //std::cout << tester_fw_rec_ipv4 << std::endl;
+  //std::cout << aftr_ipv6_tunnel << std::endl;
+  //std::cout << unsigned(lwb4_start_ipv4) << std::endl;
+  //std::cout << unsigned(psid_length) << std::endl;
+  //std::cout << cpu_fw_send << std::endl;
+
+  // check if at least one direction is active (compulsory for stateless tests)
+  if ( forward == 0 && reverse == 0 ) {
+    std::cerr << "Input Error: No active direction was specified." << std::endl;
+    return -1;
+  } 
+  
+  // check if the necessary lcores were specified
+  if ( forward ) {
+    if ( cpu_fw_send < 0 ) {
+      std::cerr << "Input Error: No 'CPU-FW-Send' was specified." << std::endl;
+      return -1;
+    }
+    if ( cpu_rv_receive < 0 ) {
+      std::cerr << "Input Error: No 'CPU-RV-Receive' was specified." << std::endl;
+      return -1;
+    }
+  }
+  if ( reverse ) {
+    if ( cpu_rv_send < 0 ) {
+      std::cerr << "Input Error: No 'CPU-RV-Send' was specified." << std::endl;
+      return -1;
+    }
+    if ( cpu_fw_receive < 0 ) {
+      std::cerr << "Input Error: No 'CPU-FW-Receive' was specified." << std::endl;
+      return -1;
+    }
+  }
+
+  /*
+  // calculate the derived values, if any port numbers or IP addresses have to be changed
+  fwd_varport = fwd_var_sport || fwd_var_dport;
+  rev_varport = rev_var_sport || rev_var_dport;
+  ip_varies = ip_left_varies || ip_right_varies;
+
+  // sanity checks regarding IP address and port number eumeration
+  switch ( stateful ) {
+    case 0: // stateless tests
+      if ( enumerate_ports ) {
+        std::cerr << "Input Error: Port number enumeration is available with stateful tests only." << std::endl;
+        return -1;
+      }
+      if ( enumerate_ips ) {
+        std::cerr << "Input Error: IP address enumeration is available with stateful tests only." << std::endl;
+        return -1;
+      }
+      break;
+    case 1: // Initiator is on the left side
+      if ( enumerate_ports && num_right_nets > 1 ) {
+        std::cerr << "Input Error: Port enumeration is available with a single destination network only." << std::endl;
+        return -1;
+      }
+      break;
+    case 2: // Initiator is on the right side
+      if ( enumerate_ports && num_left_nets > 1 ) {
+        std::cerr << "Input Error: Port enumeration is available with a single destination network only." << std::endl;
+        return -1;
+      }
+      break;
+  }
+  // sanity checks regarding multiple IP addresses and multiple destination networks
+  if ( ip_varies && ( num_left_nets > 1 || num_right_nets > 1 ) ) {
+    std::cerr << "Input Error: Usage of multiple IP address is available with a single destination network only." << std::endl;
+    return -1;
+  }
+
+  // checking the constraints for "Enumerate-ips" and "Enumerate-ports"
+  if ( stateful && enumerate_ips && enumerate_ports && enumerate_ips != enumerate_ports ) {
+    std::cerr << "Input Error: In stateful tests, if both 'Enumerate-ips' and 'Enumerate-ports' are non-zero then they MUST be equal." << std::endl; 
+    return -1;
+  }
+
+  // forcing the restriction that stateful tests with port number enumeration and multiple IP addresses MUST use IP address enumeration, too.
+  if ( stateful && enumerate_ports && ip_varies && !enumerate_ips ) {
+    std::cerr << "Input Error: In stateful tests, if port number enumeration and multiple IP addresses are used then IP address enumeration MUST be used, too." << std::endl;
+    return -1;
+  }
+
+  // forcing the restriction that stateful tests with IP address enumeration and multiple port numbers MUST use port number enumeration, too.
+  if ( stateful && enumerate_ips && (fwd_varport||rev_varport) && !enumerate_ports ) {
+    std::cerr << "Input Error: In stateful tests, if IP addresses enumeration and multiple port numbers are used then port number enumeration MUST be used." << std::endl; 
+    return -1;
+  }
+
+  // forcing the restriction that with stateful tests, if Enumerate-ips is non-zero then IP-L-var and IP-R-var also must be non-zero.
+  if ( stateful && enumerate_ips && ( !ip_left_varies || !ip_right_varies ) ) {
+    std::cerr << "Input Error: In stateful tests, Enumerate-ips is non-zero then IP-L-var and IP-R-var also must be non-zero."  << std::endl;
+    return -1;
+  }
+
+  // perform masking of the proper 16 bits of the IPv4 / IPv6 addresses
+  if ( ip_left_varies ) {
+    uint32_t ipv4mask = htonl(0xffffffff & ~(0xffffu<<((2-ipv4_left_offset)*8)));
+    ipv4_left_real &= ipv4mask;
+    ipv4_left_virtual &= ipv4mask;
+    ipv6_left_real.s6_addr[ipv6_left_offset]=0;
+    ipv6_left_real.s6_addr[ipv6_left_offset+1]=0;
+    ipv6_left_virtual.s6_addr[ipv6_left_offset]=0;
+    ipv6_left_virtual.s6_addr[ipv6_left_offset+1]=0;
+  }
+  if ( ip_right_varies ) {
+    uint32_t ipv4mask = htonl(0xffffffff & ~(0xffffu<<((2-ipv4_left_offset)*8)));
+    ipv4_right_real &= ipv4mask;
+    ipv4_right_virtual &= ipv4mask;
+    ipv6_right_real.s6_addr[ipv6_right_offset]=0;
+    ipv6_right_real.s6_addr[ipv6_right_offset+1]=0;
+    ipv6_right_virtual.s6_addr[ipv6_right_offset]=0;
+    ipv6_right_virtual.s6_addr[ipv6_right_offset+1]=0;
+  }
+  */
+  return 0;
+}
+
+// reads the command line arguments and stores the information in data members of class Throughput
+// It may be called only AFTER the execution of readConfigFile
+int Throughput::readCmdLine(int argc, const char *argv[])
+{
+  if (argc < 7)
+  {
+    printf("argc : %d\n", argc);
+    std::cerr << "Input Error: Too few command line arguments." << std::endl;
+    return -1;
+  }
+  if (sscanf(argv[1], "%hu", &ipv6_frame_size) != 1 || ipv6_frame_size < 84 || ipv6_frame_size > 1538)
+  {
+    std::cerr << "Input Error: IPv6 frame size must be between 84 and 1538." << std::endl;
+    return -1;
+  }
+  // Further checking of the frame size will be done, when n and m are read.
+  ipv4_frame_size = ipv6_frame_size - 20;
+  if (sscanf(argv[2], "%u", &frame_rate) != 1 || frame_rate < 1 || frame_rate > 14880952)
+  {
+    // 14,880,952 is the maximum frame rate for 10Gbps Ethernet using 64-byte frame size
+    std::cerr << "Input Error: Frame rate must be between 1 and 14880952." << std::endl;
+    return -1;
+  }
+  if (sscanf(argv[3], "%hu", &test_duration) != 1 || test_duration < 1 || test_duration > 3600)
+  {
+    std::cerr << "Input Error: Test duration must be between 1 and 3600." << std::endl;
+    return -1;
+  }
+  if (sscanf(argv[4], "%hu", &stream_timeout) != 1 || stream_timeout > 60000)
+  {
+    std::cerr << "Input Error: Stream timeout must be between 0 and 60000." << std::endl;
+    return -1;
+  }
+  if (sscanf(argv[5], "%u", &n) != 1 || n < 2)
+  {
+    std::cerr << "Input Error: The value of 'n' must be at least 2." << std::endl;
+    return -1;
+  }
+  if (sscanf(argv[6], "%u", &m) != 1)
+  {
+    std::cerr << "Input Error: Cannot read the value of 'm'." << std::endl;
+    return -1;
+  }
+
+  return 0;
+}
+
 int Throughput::init(const char *argv0, uint16_t leftport, uint16_t rightport)
 {
+  std::cout << "INIT STARTED" << std::endl;
   const char *rte_argv[6];                                                     // parameters for DPDK EAL init, e.g.: {NULL, "-l", "4,5,6,7", "-n", "2", NULL};
   int rte_argc = static_cast<int>(sizeof(rte_argv) / sizeof(rte_argv[0])) - 1; // argc value for DPDK EAL init
   struct rte_eth_conf cfg_port;                                                // for configuring the Ethernet ports
@@ -55,23 +577,28 @@ int Throughput::init(const char *argv0, uint16_t leftport, uint16_t rightport)
   if (forward && reverse)
   {
     // both directions are active
-    snprintf(coresList, 101, "0,%d,%d,%d,%d", left_sender_cpu, right_receiver_cpu, right_sender_cpu, left_receiver_cpu);
+    snprintf(coresList, 101, "0,%d,%d,%d,%d", cpu_fw_send, cpu_rv_receive,  cpu_rv_send, cpu_fw_receive);
   }
   else if (forward)
-    snprintf(coresList, 101, "0,%d,%d", left_sender_cpu, right_receiver_cpu); // only forward (left to right) is active
+    snprintf(coresList, 101, "0,%d,%d", cpu_fw_send, cpu_rv_receive); // only forward (left to right) is active
   else
-    snprintf(coresList, 101, "0,%d,%d", right_sender_cpu, left_receiver_cpu); // only reverse (right to left) is active
+    snprintf(coresList, 101, "0,%d,%d",  cpu_rv_send, cpu_fw_receive); // only reverse (right to left) is active
+  std::cout << "HA forward és reverse KÉSZ" << std::endl;
   rte_argv[2] = coresList;
+  std::cout << "CoreList BEÁLLÍTVA" << std::endl;
   rte_argv[3] = "-n";
   snprintf(numChannels, 11, "%hhu", memory_channels);
   rte_argv[4] = numChannels;
   rte_argv[5] = 0;
+  std::cout << "RTE INIT KEZD" << std::endl;
 
+  std::cout << coresList << std::endl;
   if (rte_eal_init(rte_argc, const_cast<char **>(rte_argv)) < 0)
   {
     std::cerr << "Error: DPDK RTE initialization failed, Tester exits." << std::endl;
     return -1;
   }
+  std::cout << "RTE INIT SIKER" << std::endl;
 
   if (!rte_eth_dev_is_valid_port(leftport))
   {
@@ -111,15 +638,15 @@ int Throughput::init(const char *argv0, uint16_t leftport, uint16_t rightport)
   int right_sender_pool_size = senderPoolSize();
   int receiver_pool_size = PORT_RX_QUEUE_SIZE + 2 * MAX_PKT_BURST + 100; // While one of them is processed, the other one is being filled.
 
-  r = rte_pktmbuf_pool_create("pp_left_sender", left_sender_pool_size, PKTPOOL_CACHE, 0,
-                                                 RTE_MBUF_DEFAULT_BUF_SIZE, rte_lcore_to_socket_id(left_sender_cpu));
+  pkt_pool_left_sender = rte_pktmbuf_pool_create("pp_left_sender", left_sender_pool_size, PKTPOOL_CACHE, 0,
+                                                 RTE_MBUF_DEFAULT_BUF_SIZE, rte_lcore_to_socket_id(cpu_fw_send));
   if (!pkt_pool_left_sender)
   {
     std::cerr << "Error: Cannot create packet pool for Left Sender, Tester exits." << std::endl;
     return -1;
   }
   pkt_pool_right_receiver = rte_pktmbuf_pool_create("pp_right_receiver", receiver_pool_size, PKTPOOL_CACHE, 0,
-                                                    RTE_MBUF_DEFAULT_BUF_SIZE, rte_lcore_to_socket_id(right_receiver_cpu));
+                                                    RTE_MBUF_DEFAULT_BUF_SIZE, rte_lcore_to_socket_id(cpu_rv_receive));
   if (!pkt_pool_right_receiver)
   {
     std::cerr << "Error: Cannot create packet pool for Right Receiver, Tester exits." << std::endl;
@@ -127,14 +654,14 @@ int Throughput::init(const char *argv0, uint16_t leftport, uint16_t rightport)
   }
 
   pkt_pool_right_sender = rte_pktmbuf_pool_create("pp_right_sender", right_sender_pool_size, PKTPOOL_CACHE, 0,
-                                                  RTE_MBUF_DEFAULT_BUF_SIZE, rte_lcore_to_socket_id(right_sender_cpu));
+                                                  RTE_MBUF_DEFAULT_BUF_SIZE, rte_lcore_to_socket_id( cpu_rv_send));
   if (!pkt_pool_right_sender)
   {
     std::cerr << "Error: Cannot create packet pool for Right Sender, Tester exits." << std::endl;
     return -1;
   }
   pkt_pool_left_receiver = rte_pktmbuf_pool_create("pp_left_receiver", receiver_pool_size, PKTPOOL_CACHE, 0,
-                                                   RTE_MBUF_DEFAULT_BUF_SIZE, rte_lcore_to_socket_id(left_receiver_cpu));
+                                                   RTE_MBUF_DEFAULT_BUF_SIZE, rte_lcore_to_socket_id(cpu_fw_receive));
   if (!pkt_pool_left_receiver)
   {
     std::cerr << "Error: Cannot create packet pool for Left Receiver, Tester exits." << std::endl;
@@ -214,13 +741,13 @@ int Throughput::init(const char *argv0, uint16_t leftport, uint16_t rightport)
     {
       if (forward)
       {
-        numaCheck(leftport, "Left", left_sender_cpu, "Left Sender");
-        numaCheck(rightport, "Right", right_receiver_cpu, "Right Receiver");
+        numaCheck(leftport, "Left", cpu_fw_send, "Left Sender");
+        numaCheck(rightport, "Right", cpu_rv_receive, "Right Receiver");
       }
       if (reverse)
       {
-        numaCheck(rightport, "Right", right_sender_cpu, "Right Sender");
-        numaCheck(leftport, "Left", left_receiver_cpu, "Left Receiver");
+        numaCheck(rightport, "Right",  cpu_rv_send, "Right Sender");
+        numaCheck(leftport, "Left", cpu_fw_receive, "Left Receiver");
       }
     }
   }
@@ -228,13 +755,13 @@ int Throughput::init(const char *argv0, uint16_t leftport, uint16_t rightport)
   // Some sanity checks: TSCs of the used cores are synchronized or not...
   if (forward)
   {
-    check_tsc(left_sender_cpu, "Left Sender");
-    check_tsc(right_receiver_cpu, "Right Receiver");
+    check_tsc(cpu_fw_send, "Left Sender");
+    check_tsc(cpu_rv_receive, "Right Receiver");
   }
   if (reverse)
   {
-    check_tsc(right_sender_cpu, "Right Sender");
-    check_tsc(left_receiver_cpu, "Left Receiver");
+    check_tsc( cpu_rv_send, "Right Sender");
+    check_tsc(cpu_fw_receive, "Left Receiver");
   }
 
   // prepare further values for testing
@@ -242,103 +769,51 @@ int Throughput::init(const char *argv0, uint16_t leftport, uint16_t rightport)
   start_tsc = rte_rdtsc() + hz * START_DELAY / 1000;                             // Each active sender starts sending at this time
   finish_receiving = start_tsc + hz * (test_duration + stream_timeout / 1000.0); // Each receiver stops at this time
 
-  // producing some important values from the BMR configuration parameters for the next tasks (e.g., generating the pseudorandom EA combinations)
-  bmr_ipv4_suffix_length = 32 - bmr_ipv4_prefix_length;
-  psid_length = bmr_EA_length - bmr_ipv4_suffix_length;
-  num_of_port_sets = pow(2.0, psid_length);
-  num_of_ports = (uint16_t)(65536.0 / num_of_port_sets); // 65536.0 denotes the total number of port possibilities can be there in the 16-bit udp port number(i.e., 2 ^ 16)
-  int num_of_suffixes = pow(2.0, bmr_ipv4_suffix_length)-2; //-2 to exclude the subnet and broadcast addresses
-  int max_num_of_CEs = (num_of_suffixes * num_of_port_sets); //maximum possible number of CEs based on the number of EA-bits
-
-  if (num_of_CEs > max_num_of_CEs){
-    std::cerr << "Config Error: The number of CEs ("<< num_of_CEs <<") to be simulated exceeds the maximum number that EA-bits allow (" << max_num_of_CEs << ")" << std::endl;
-    return -1;
-  }
+  /**
+  num_of_port_sets = pow(2.0, PSID_length);
+  int num_of_ports_in_one_port_set = (int)(65536.0 / num_of_port_sets);
   
-  // pre-generate pseudorandom EA-bits combinations 
-  //and save them in a NUMA local memory (of the same memory of the sender core for fast access)
-  // For this purpose, we used rte_eal_remote_launch() and pack parameters for it
 
-  // prepare the parameters for the randomPermutationGenerator48
-    randomPermutationGeneratorParameters48 pars;
-    pars.ip4_suffix_length = bmr_ipv4_suffix_length;
-    pars.psid_length = psid_length;
-    pars.hz = rte_get_timer_hz(); // number of clock cycles per second;
+
+  randomPermutationGeneratorParameters48 pars;
+  pars.ip4_suffix_length = bmr_ipv4_suffix_length;
+  pars.psid_length = psid_length;
+  pars.hz = rte_get_timer_hz(); // number of clock cycles per second;
     
-    if (forward)
-      {
-        pars.direction = "forward"; 
-        pars.addr_of_arraypointer = &fwUniqueEAComb;
-        // start randomPermutationGenerator32
-        if ( rte_eal_remote_launch(randomPermutationGenerator48, &pars, left_sender_cpu ) )
-          std::cerr << "Error: could not start randomPermutationGenerator48() for pre-generating unique EA-bits combinations at the " << pars.direction << " sender" << std::endl;
-        rte_eal_wait_lcore(left_sender_cpu);
-      }
-    if (reverse)
-      {
-        pars.direction = "reverse";
-        pars.addr_of_arraypointer = &rvUniqueEAComb;
-        // start randomPermutationGenerator32
-        if ( rte_eal_remote_launch(randomPermutationGenerator48, &pars, right_sender_cpu ) )
-          std::cerr << "Error: could not start randomPermutationGenerator48() for pre-generating unique EA-bits combinations at the " << pars.direction << " sender" << std::endl;
-        rte_eal_wait_lcore(right_sender_cpu);
-      }
-
-  // pre-generate the array of CEs Data (MAP addresses and others) 
-  //and save it in a NUMA local memory (of the same memory of the sender core for fast access)
-  // For this purpose, we used rte_eal_remote_launch() and pack parameters for it
-
-  CEArrayBuilderParameters param;
-  param.bmr_ipv4_suffix_length = bmr_ipv4_suffix_length; 
-  param.psid_length =  psid_length;            
-  param.num_of_CEs = num_of_CEs;             
-  param.bmr_ipv6_prefix = bmr_ipv6_prefix; 
-  param.bmr_ipv6_prefix_length = bmr_ipv6_prefix_length;  
-  param.bmr_ipv4_prefix = bmr_ipv4_prefix;        
-  param.hz = rte_get_timer_hz(); // number of clock cycles per second			
-  
   if (forward)
     {
-      param.direction = "forward"; 
-      param.UniqueEAComb = fwUniqueEAComb;       
-      param.addr_of_arraypointer = &fwCE;
+      pars.direction = "forward"; 
+      pars.addr_of_arraypointer = &fwUniqueEAComb;
       // start randomPermutationGenerator32
-        if ( rte_eal_remote_launch(buildCEArray, &param, left_sender_cpu ) )
-          std::cerr << "Error: could not start buildCEArray() for pre-generating the array of CEs data at the " << param.direction << " sender" << std::endl;
-        rte_eal_wait_lcore(left_sender_cpu);
-      }
+      if ( rte_eal_remote_launch(randomPermutationGenerator48, &pars, cpu_fw_send ) )
+        std::cerr << "Error: could not start randomPermutationGenerator48() for pre-generating unique EA-bits combinations at the " << pars.direction << " sender" << std::endl;
+       rte_eal_wait_lcore(cpu_fw_send);
+    }
   if (reverse)
-      {
-        param.direction = "reverse";
-        param.UniqueEAComb = rvUniqueEAComb;       
-        param.addr_of_arraypointer = &rvCE;
-        // start randomPermutationGenerator32
-        if ( rte_eal_remote_launch(buildCEArray, &param, right_sender_cpu ) )
-             std::cerr << "Error: could not start buildCEArray() for pre-generating the array of CEs data at the " << param.direction << " sender" << std::endl;
-        rte_eal_wait_lcore(right_sender_cpu);
-      }
-
-  // Construct the DMR ipv6 address (It will be the destination address in the forward direction in case of the foreground traffic)
- // Based on section 2.2 of RFC 6052, The possible DMR prefix length are 32, 40, 48, 56, 64, and 96.
- //and bits 64 to 71 of the address are reserved and should be 0 for all prefix cases except 96.
- //When using a /96 Network-Specific Prefix, the administrators MUST ensure that the bits 64 to 71 are set to zero.
- //Please refer to the figure of section 2.2 of RFC 6052 for more information.
- rte_memcpy(dmr_ipv6.s6_addr, dmr_ipv6_prefix.s6_addr, 16);
-
- int num_octets_before_u = (64-dmr_ipv6_prefix_length)/8;
- int num_octets_after_u = 4 - num_octets_before_u;
- if (num_octets_before_u < 0) // /96 prefix. There are no u bits
-  for (int i = 0; i < 4; i++)
-    dmr_ipv6.s6_addr[15 - i] = (unsigned char)(ntohl(tester_right_ipv4) >> (i * 8));
- else { // /32, /40, /48, /56, or /64 prefix. There are u bits (64-72)
-  for (int i = 0; i < num_octets_before_u; i++)
-    dmr_ipv6.s6_addr[7 - i] = (unsigned char)(ntohl(tester_right_ipv4) >> ((i + num_octets_after_u) * 8));
-  // dmr_ipv6.s6_addr[8] = u bits = 0
-  for (int i = 0; i < num_octets_after_u; i++)
-    dmr_ipv6.s6_addr[9 + i] = (unsigned char)(ntohl(tester_right_ipv4) >> (((num_octets_after_u - 1) - i) * 8));
- }
-
+    {
+      pars.direction = "reverse";
+      pars.addr_of_arraypointer = &rvUniqueEAComb;
+      // start randomPermutationGenerator32
+      if ( rte_eal_remote_launch(randomPermutationGenerator48, &pars,  cpu_rv_send ) )
+        std::cerr << "Error: could not start randomPermutationGenerator48() for pre-generating unique EA-bits combinations at the " << pars.direction << " sender" << std::endl;
+      rte_eal_wait_lcore( cpu_rv_send);
+    }
+*/
+  std::cout << "INIT lefutott" << std::endl;
   return 0;
+}
+
+
+//checks NUMA localty: is the NUMA node of network port and CPU the same?
+void Throughput::numaCheck(uint16_t port, const char *port_side, int cpu, const char *cpu_name) {
+  int n_port, n_cpu;
+  n_port = rte_eth_dev_socket_id(port);
+  n_cpu = numa_node_of_cpu(cpu);
+  if ( n_port == n_cpu )
+    std::cout << "Info: " << port_side << " port and " << cpu_name << " CPU core belong to the same NUMA node: " << n_port << std::endl;
+  else
+    std::cout << "Warning: " << port_side << " port and " << cpu_name << " CPU core belong to NUMA nodes " <<
+      n_port << ", " << n_cpu << ", respectively." << std::endl; 
 }
 
 
@@ -350,7 +825,7 @@ struct rte_mbuf *mkTestFrame4(uint16_t length, rte_mempool *pkt_pool, const char
   struct rte_mbuf *pkt_mbuf = rte_pktmbuf_alloc(pkt_pool); // message buffer for the Test Frame
   if (!pkt_mbuf)
     rte_exit(EXIT_FAILURE, "Error: %s sender can't allocate a new mbuf for the Test Frame! \n", direction);
-  length -= ETHER_CRC_LEN;                                                                                       // exclude CRC from the frame length
+  length -= RTE_ETHER_CRC_LEN;                                                                                       // exclude CRC from the frame length
   pkt_mbuf->pkt_len = pkt_mbuf->data_len = length;                                                               // set the length in both places
   uint8_t *pkt = rte_pktmbuf_mtod(pkt_mbuf, uint8_t *);                                                          // Access the Test Frame in the message buffer
   rte_ether_hdr *eth_hdr = reinterpret_cast<struct rte_ether_hdr *>(pkt);                                                // Ethernet header
@@ -422,7 +897,7 @@ struct rte_mbuf *mkIpv4inIpv6Tun(uint16_t length, rte_mempool *pkt_pool, const c
   struct rte_mbuf *pkt_mbuf = rte_pktmbuf_alloc(pkt_pool); // message buffer for the Test Frame
   if (!pkt_mbuf)
     rte_exit(EXIT_FAILURE, "Error: %s sender can't allocate a new mbuf for the Test Frame! \n", direction);
-  length -= ETHER_CRC_LEN;                                                                                       // exclude CRC from the frame length
+  length -= RTE_ETHER_CRC_LEN;                                                                                       // exclude CRC from the frame length
   pkt_mbuf->pkt_len = pkt_mbuf->data_len = length;                                                               // set the length in both places
   uint8_t *pkt = rte_pktmbuf_mtod(pkt_mbuf, uint8_t *);                                                          // Access the Test Frame in the message buffer
   rte_ether_hdr *eth_hdr = reinterpret_cast<struct rte_ether_hdr *>(pkt);                                                // Ethernet header
@@ -452,7 +927,7 @@ struct rte_mbuf *mkTestFrame6(uint16_t length, rte_mempool *pkt_pool, const char
   struct rte_mbuf *pkt_mbuf = rte_pktmbuf_alloc(pkt_pool); // message buffer for the Test Frame
   if (!pkt_mbuf)
     rte_exit(EXIT_FAILURE, "Error: %s sender can't allocate a new mbuf for the Test Frame! \n", direction);
-  length -= ETHER_CRC_LEN;                                                                                       // exclude CRC from the frame length
+  length -= RTE_ETHER_CRC_LEN;                                                                                       // exclude CRC from the frame length
   pkt_mbuf->pkt_len = pkt_mbuf->data_len = length;                                                               // set the length in both places
   uint8_t *pkt = rte_pktmbuf_mtod(pkt_mbuf, uint8_t *);                                                          // Access the Test Frame in the message buffer
   rte_ether_hdr *eth_hdr = reinterpret_cast<struct rte_ether_hdr *>(pkt);                                                // Ethernet header
@@ -484,3 +959,9 @@ void mkData(uint8_t *data, uint16_t length)
     data[i] = i % 256;
 }
 
+// calculates sender pool size, it is a virtual member function, redefined in derived classes
+int Throughput::senderPoolSize()
+{
+  return 2 * N + PORT_TX_QUEUE_SIZE + 100; // 2*: fg. and bg. Test Frames
+  // if varport then everything exists in N copies, see the definition of N
+}
