@@ -15,7 +15,7 @@ struct lwB4_data
 public:
   uint32_t ipv4_addr;
   uint16_t ipv4_addr_chksum;
-  struct in6_addr map_addr;
+  //struct in6_addr map_addr;
   uint16_t psid; // The ID of the randomly selected port set for the simulated CE
 };
 
@@ -25,9 +25,11 @@ public:
   // parameters from the configuration file
   //struct in6_addr tester_left_ipv6;  // Tester's left interface IPv6 address (unused for now as we will use the MAP address instead)
     uint32_t tester_fw_rec_ipv4;        // Tester's right interface IPv4 address
+    struct in6_addr tester_fw_send_ipv6;
+
     struct in6_addr tester_bg_send_ipv6; // Tester's right interface IPv6 address (used for sending background traffic)
     struct in6_addr tester_bg_rec_ipv6;
-    struct in6_addr tester_fw_rec_ipv6;
+    
 
     uint8_t tester_fw_mac[6];  // Tester's left interface MAC address, forward direction, from teser to DUT
     uint8_t tester_rv_mac[6]; // Tester's right interface MAC address, reverse direction,
@@ -75,13 +77,13 @@ public:
   uint64_t finish_receiving;                                   // receiving of the test frames will end at this time
   uint64_t frames_to_send;                                     // number of frames to send
 
-  
+  // lw4o6 parameters
     uint8_t psid_length;            // The number of BMR's PSID bits
-  uint16_t num_of_port_sets;      // The number of port sets that can be obtained according to the psid_length
-  uint16_t num_of_ports;          // The number of ports in each port set
+    uint16_t num_of_port_sets;      // The number of port sets that can be obtained according to the psid_length
+    uint16_t num_of_ports;          // The number of ports in each port set
     uint32_t number_of_lwB4s;             // Number of simulated lwB4s
-    struct in6_addr aftr_ipv6_tunnel; // The BMR’s Rule IPv6 Prefix of the MAP address
-    struct in6_addr aftr_fw_ipv6;
+    struct in6_addr dut_ipv6_tunnel; // The BMR’s Rule IPv6 Prefix of the MAP address
+    struct in6_addr dut_fw_ipv6;
     uint32_t lwb4_start_ipv4;
     uint32_t lwb4_end_ipv4;
 
@@ -121,17 +123,57 @@ struct rte_mbuf *mkIpv4inIpv6Tun(uint16_t length, rte_mempool *pkt_pool, const c
                               struct in6_addr *src_ipv6, struct in6_addr *dst_ipv6, unsigned var_sport, unsigned var_dport,
                               const uint32_t *src_ipv4, uint32_t *dst_ipv4);
 
-//int buildB4Array(void *par);
+// to store identical parameters for both senders
+class senderCommonParameters
+{
+public:
+  uint16_t ipv6_frame_size; 
+  uint16_t ipv4_frame_size; 
+  uint32_t frame_rate;      
+  uint16_t test_duration;   
+  uint32_t n, m;            
+  uint64_t hz;              
+  uint64_t start_tsc;       
+  uint64_t frames_to_send;  
+  uint32_t number_of_lwB4s;
+  uint16_t num_of_port_sets;
+  uint16_t num_of_ports;
+  struct in6_addr *dut_ipv6_tunnel; //
+  struct in6_addr *dut_fw_ipv6;
+  struct in6_addr *tester_bg_send_ipv6; 
+  struct in6_addr *tester_bg_rec_ipv6;
+  struct in6_addr *tester_fw_send_ipv6;
+  uint32_t *tester_fw_rec_ipv4;
+  uint16_t bg_fw_dport_min; 
+  uint16_t bg_fw_dport_max; 
+  uint16_t bg_rv_sport_min; 
+  uint16_t bg_rv_sport_max;
+  
 
-/*
-class B4ArrayBuilderParameters{
-  public:
-  B4_data **addr_of_arraypointer;	// pointer to the place, where the pointer is stored
-  uint8_t B4-IPv6;  
-  uint8_t PSID_length;            // The number bits 
-  uint32_t num_of_B4s;             // Number of simulated B4s
-  uint64_t hz;			// just to be able to display the execution time
-  const char *direction; // test direction (forward or reverse). To be used for showing for which sender this CE array belongs.
-};*/
+  senderCommonParameters(uint16_t ipv6_frame_size_, uint16_t ipv4_frame_size_, uint32_t frame_rate_, uint16_t test_duration_,
+                         uint32_t n_, uint32_t m_, uint64_t hz_, uint64_t start_tsc_, uint32_t number_of_lwB4s_, uint16_t num_of_port_sets_,
+                         uint16_t num_of_ports_, struct in6_addr *dut_ipv6_tunnel_, uint32_t *tester_fw_rec_ipv4_, struct in6_addr *dut_fw_ipv6_, 
+                         struct in6_addr *tester_bg_send_ipv6_, struct in6_addr *tester_bg_rec_ipv6, struct in6_addr *tester_fw_send_ipv6, uint16_t bg_rv_sport_min_, uint16_t bg_rv_sport_max_, 
+                         uint16_t bg_fw_dport_min_, uint16_t bg_fw_dport_max_
+                         );
+};
+
+class senderParameters
+{
+public:
+  class senderCommonParameters *cp; // a pointer to the common parameters
+  rte_mempool *pkt_pool; // sender's packet pool
+  uint8_t eth_id; // ethernet ID
+  const char *direction; // test direction (forward or reverse)
+  lwB4_data *lwB4_array;
+  struct ether_addr *dst_mac, *src_mac; // destination and source mac addresses
+  unsigned var_sport, var_dport; // how source and destination port numbers vary? 1:increase, 2:decrease, or 3:pseudorandomly change
+  uint16_t preconfigured_port_min, preconfigured_port_max; // The preconfigured range of ports (i.e., destination in case of forward and source in case of reverse)
+  
+  senderParameters(class senderCommonParameters *cp_, rte_mempool *pkt_pool_, uint8_t eth_id_, const char *direction_,
+                   lwB4_data *lwB4_array_, struct ether_addr *dst_mac_, struct ether_addr *src_mac_, unsigned var_sport_, unsigned var_dport_,
+                   uint16_t preconfigured_port_min_, uint16_t preconfigured_port_max_
+                   );
+};
 
 #endif
