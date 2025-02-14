@@ -15,8 +15,7 @@ struct lwB4_data
 public:
   uint32_t ipv4_addr;
   uint16_t ipv4_addr_chksum;
-  //struct in6_addr map_addr;
-  uint16_t psid; // The ID of the randomly selected port set for the simulated CE
+  uint16_t psid;
 };
 
 class Throughput
@@ -79,6 +78,7 @@ public:
 
   // lw4o6 parameters
     uint8_t psid_length;            // The number of BMR's PSID bits
+    uint8_t psid;
     uint16_t num_of_port_sets;      // The number of port sets that can be obtained according to the psid_length
     uint16_t num_of_ports;          // The number of ports in each port set
     uint32_t number_of_lwB4s;             // Number of simulated lwB4s
@@ -86,6 +86,7 @@ public:
     struct in6_addr dut_fw_ipv6;
     uint32_t lwb4_start_ipv4;
     uint32_t lwb4_end_ipv4;
+    uint32_t *lwB4_array;
 
 
   // helper functions (see their description at their definition)
@@ -102,7 +103,6 @@ public:
 
   Throughput();
 };
-
 
 
 struct rte_mbuf *mkTestFrame4(uint16_t length, rte_mempool *pkt_pool, const char *direction,
@@ -153,8 +153,8 @@ public:
   senderCommonParameters(uint16_t ipv6_frame_size_, uint16_t ipv4_frame_size_, uint32_t frame_rate_, uint16_t test_duration_,
                          uint32_t n_, uint32_t m_, uint64_t hz_, uint64_t start_tsc_, uint32_t number_of_lwB4s_, uint16_t num_of_port_sets_,
                          uint16_t num_of_ports_, struct in6_addr *dut_ipv6_tunnel_, uint32_t *tester_fw_rec_ipv4_, struct in6_addr *dut_fw_ipv6_, 
-                         struct in6_addr *tester_bg_send_ipv6_, struct in6_addr *tester_bg_rec_ipv6, struct in6_addr *tester_fw_send_ipv6, uint16_t bg_rv_sport_min_, uint16_t bg_rv_sport_max_, 
-                         uint16_t bg_fw_dport_min_, uint16_t bg_fw_dport_max_
+                         struct in6_addr *tester_bg_send_ipv6_, struct in6_addr *tester_bg_rec_ipv6, struct in6_addr *tester_fw_send_ipv6,
+                         uint16_t bg_rv_sport_min_, uint16_t bg_rv_sport_max_, uint16_t bg_fw_dport_min_, uint16_t bg_fw_dport_max_
                          );
 };
 
@@ -171,9 +171,26 @@ public:
   uint16_t preconfigured_port_min, preconfigured_port_max; // The preconfigured range of ports (i.e., destination in case of forward and source in case of reverse)
   
   senderParameters(class senderCommonParameters *cp_, rte_mempool *pkt_pool_, uint8_t eth_id_, const char *direction_,
-                   lwB4_data *lwB4_array_, struct ether_addr *dst_mac_, struct ether_addr *src_mac_, unsigned var_sport_, unsigned var_dport_,
+                   /*lwB4_data *lwB4_array_,*/ struct ether_addr *dst_mac_, struct ether_addr *src_mac_, unsigned var_sport_, unsigned var_dport_,
                    uint16_t preconfigured_port_min_, uint16_t preconfigured_port_max_
                    );
 };
+
+// to store the parameters for randomPermutationGenerator48
+class randomPermutationGeneratorParameters48 {
+  public:
+  //EAbits48 **addr_of_arraypointer;	// pointer to the place, where the pointer is stored 
+  uint8_t ip4_suffix_length;
+  uint8_t psid_length;
+  uint64_t hz;			// just to be able to display the execution time
+  const char *direction; // test direction (forward or reverse). To be used for showing for which sender this EA combinations array belongs.
+
+};
+
+// send test frame
+int send(void *par);
+
+// receive and count test frames
+int receive(void *par);
 
 #endif
