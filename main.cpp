@@ -14,7 +14,7 @@ int main(int argc, const char **argv) {
 	std::cout << "Read CMDLine and ConfFile" << std::endl;
 	if ( tp.init(argv[0], LEFTPORT, RIGHTPORT) < 0)
 		return -1;
-	tp.measure(LEFTPORT, RIGHTPORT);
+	//tp.measure(LEFTPORT, RIGHTPORT);
 	
 	
 	return 0;

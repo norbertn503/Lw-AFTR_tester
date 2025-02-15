@@ -27,7 +27,8 @@ Throughput::Throughput(){
   bg_fw_dport_min = 1;              // default value: as recommended by RFC 4814
   bg_fw_dport_max = 49151;          // default value: as recommended by RFC 4814
   bg_rv_sport_min = 1024;           // default value: as recommended by RFC 4814
-  bg_rv_sport_max = 65535;          // default value: as recommended by RFC 4814                 
+  bg_rv_sport_max = 65535;          // default value: as recommended by RFC 4814
+  //lwB4_array = NULL;               
 };
 
 // reports the TSC of the core (in the variable pointed by the input parameter), on which it is running
@@ -618,20 +619,7 @@ int Throughput::init(const char *argv0, uint16_t leftport, uint16_t rightport)
   //std::cout << lwb4_end_ipv4 << std::endl;
   //std::cout << tester_fw_rec_ipv4 << std::endl;
 
-  //uint32_t convert to char*
-  //uint32_t ip = 0xC0A80101;  // 192.168.1.1 in hexadecimal
-
-    struct in_addr ip_addr;
-    uint32_t newip = lwb4_end_ipv4+1;
-    ip_addr.s_addr = htonl(lwb4_end_ipv4)+1 ; // Convert to network byte order, ez bájtsorrendet cserél htonl()
-
-    char ip_str[INET_ADDRSTRLEN]; // Buffer to store the IP string
-    if (inet_ntop(AF_INET, &ip_addr, ip_str, INET_ADDRSTRLEN) != nullptr) {
-        std::cout << "IP Address: " << ip_str << std::endl;
-    } else {
-        std::cerr << "inet_ntop failed!" << std::endl;
-    }
-
+  
     
     if (lwb4_start_ipv4 < lwb4_end_ipv4){
       std::cout << "START KISEBB" << std::endl;
@@ -645,9 +633,55 @@ int Throughput::init(const char *argv0, uint16_t leftport, uint16_t rightport)
     if(number_of_lwB4s != 1){
       std::cerr << "Error: NUM-OF-lwB4s should be 1 when LWB4-start-IPv4 and LWB4-end-IPv4 are equal, Tester exits." << std::endl;
       return -1;
-    }  
+    }      
     std::cout << "EGYENLŐ"<< std::endl;
+  } else {
+
+    //uint32_t convert to char*
+    //uint32_t ip = 0xC0A80101;  // 192.168.1.1 in hexadecimal
+/**
+    struct in_addr ip_addr;
+    std::cout << lwb4_end_ipv4 << std::endl;
+    uint32_t start_ip = htonl(lwb4_start_ipv4);
+    uint32_t end_ip = htonl(lwb4_end_ipv4);
+    ip_addr.s_addr = htonl(lwb4_end_ipv4) ; // Convert to network byte order, ez bájtsorrendet cserél htonl()
     
+    char ip_str[INET_ADDRSTRLEN]; // Buffer to store the IP string
+    if (inet_ntop(AF_INET, &ip_addr, ip_str, INET_ADDRSTRLEN) != nullptr) {
+        std::cout << "IP Address: " << ip_str << std::endl;
+    } else {
+        std::cerr << "inet_ntop failed!" << std::endl;
+    }
+    std::cout << ntohl(ip_addr.s_addr) << std::endl;
+    */
+    uint32_t b4_array[number_of_lwB4s] = {};
+    uint32_t start_ip = htonl(lwb4_start_ipv4);
+    uint32_t end_ip = htonl(lwb4_end_ipv4);
+    int count = 0;
+    for(uint32_t ip = start_ip; ip <= end_ip; ++ip){
+      b4_array[count] = ntohl(ip);        //ntohl(ip);    ip;
+      count++;
+    }
+    if(count != number_of_lwB4s){
+      std::cerr << "Error: NUM-OF-lwB4s is not equal the number calculated from lwB4 start and end addresses, Tester exits." << std::endl;
+      return -1;
+    }  
+
+    //std::cout << lwB4_array;
+    std::cout << "IP címek száma: " << count << std::endl;
+    struct in_addr ip_addr;
+    for(int i=0; i < count; i++){
+      ip_addr.s_addr = b4_array[i];
+      std::cout << "IP Address uint-ként: " << b4_array[i] << std::endl;
+      char ip_str[INET_ADDRSTRLEN]; // Buffer to store the IP string
+      if (inet_ntop(AF_INET, &ip_addr, ip_str, INET_ADDRSTRLEN) != nullptr) {
+        std::cout << "IP Address: " << ip_str << std::endl;
+      } else {
+        std::cerr << "inet_ntop failed!" << std::endl;
+      }
+
+    } 
+     
   }
    
   /**
