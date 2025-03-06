@@ -826,6 +826,7 @@ struct rte_mbuf *mkIpv4inIpv6Tun(uint16_t length, rte_mempool *pkt_pool, const c
   mkData(udp_data, data_length);
   udp_hd->dgram_cksum = rte_ipv6_udptcp_cksum(ipv6_hdr, udp_hd); // UDP checksum is calculated and set
   //Kell az IPv4-re külön checksumot számolni?
+  ip_hdr->hdr_checksum = rte_ipv4_cksum(ipv4_hdr); 
   return pkt_mbuf;
 }
 
@@ -1414,7 +1415,48 @@ int send(void *par)
   return 0;
 }
 
-/*
+// helper function to the generator function below
+void randomPermutation48(lwB4_data *array, uint8_t ip4_suffix_length, uint8_t psid_length){
+  uint32_t suffix_field, suffix_min, x; // x for suffix coordinate
+  uint16_t psid_field, psid_min, y; // y for psid coordinate
+  uint32_t xsize = pow(2.0,ip4_suffix_length);
+  uint32_t ysize = pow(2.0,psid_length); // 
+  uint64_t size = (xsize-2)*(ysize);  // size of the entire array / -2 to exclude all 0's case(subnet addr) and all 1's case(broadcast addr)
+  uint64_t index, random; 	// index and random variables
+
+  // prepare random permutation using Fisher–Yates shuffle, as implemented by Durstenfeld (in-place)
+  // http://en.wikipedia.org/wiki/Fisher%E2%80%93Yates_shuffle#The_.22inside-out.22_algorithm
+
+  // random number infrastructure is taken from: https://en.cppreference.com/w/cpp/numeric/random/uniform_real_distribution
+  // MT64 is used because of https://medium.com/@odarbelaeze/how-competitive-are-c-standard-random-number-generators-f3de98d973f0
+  // thread_local is used on the basis of https://stackoverflow.com/questions/40655814/is-mersenne-twister-thread-safe-for-cpp
+  thread_local std::random_device rd;  // Will be used to obtain a seed for the random number engine
+  thread_local std::mt19937_64 gen(rd()); // Standard 64-bit mersenne_twister_engine seeded with rd()
+  std::uniform_real_distribution<double> uni_dis(0, 1.0);
+
+  // set the very first element
+  array[0].ip4_suffix = suffix_min = 1;
+  array[0].psid = psid_min = 0;
+  
+  for ( index=1; index<size; index++ ){
+    // prepare the coordinates
+    x = index / ysize;	// suffix field relative to suffix_min
+    y = index % ysize;	// psid field relative to psid_min
+    suffix_field = x + suffix_min;	// real suffix field
+    psid_field = y + psid_min;	// real psid field
+    // generate a random integer in the range [0, index] using uni_dis(gen), a random double in [0, 1).
+    random = uni_dis(gen)*(index+1);
+
+    // condition "if ( random != index )" is left out to spare a branch instruction on the cost of a redundant copy
+    array[index].ip4_suffix = array[random].ip4_suffix;
+    array[index].psid = array[random].psid;
+    array[random].ip4_suffix = suffix_field;
+    array[random].psid = psid_field;
+      
+  }
+
+}
+
 // creates an array of unique pseudorandom EA combinations
 int randomPermutationGenerator48(void *par) {
   // collecting input parameters:
@@ -1424,10 +1466,10 @@ int randomPermutationGenerator48(void *par) {
   uint64_t hz = p->hz;		// just for giving info about execution time
   const char *direction = p->direction;
   uint64_t start_gen, end_gen;  // timestamps for the above purpose 
-  EAbits48 *array= NULL;	// array for storing the unique EA combinations
+  lwB4_data *array= NULL;	// array for storing the unique EA combinations
   uint64_t size = (pow(2.0,ip4_suffix_length)-2)*(pow(2.0,psid_length));  // size of the above array;
 
-  array = (EAbits48 *) rte_malloc("Pre-generated unique EA 48-bits combinations", (sizeof(EAbits48))*size, 128);
+  array = (lwB4_data *) rte_malloc("Pre-generated unique EA 48-bits combinations", (sizeof(EAbits48))*size, 128);
   if ( !array )
     rte_exit(EXIT_FAILURE, "Error: Can't allocate NUMA local memory for Pre-generated unique EA-bits combinations array for the %s sender!\n", direction);
   
@@ -1439,4 +1481,3 @@ int randomPermutationGenerator48(void *par) {
 
   *(p->addr_of_arraypointer) = array;	// set the pointer in the caller
 }
-  */

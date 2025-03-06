@@ -16,6 +16,9 @@ public:
   uint32_t ipv4_addr;
   uint16_t ipv4_addr_chksum;
   uint16_t psid;
+  uint16_t psid_length;
+  struct in6_addr b4_ipv6_addr;
+  struct in6_addr aftr_tunnel_addr;
 };
 
 class Throughput
