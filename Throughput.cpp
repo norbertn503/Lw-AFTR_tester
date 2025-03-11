@@ -456,8 +456,8 @@ int Throughput::init(const char *argv0, uint16_t leftport, uint16_t rightport)
 
   // prepare for configuring the Ethernet ports
   memset(&cfg_port, 0, sizeof(cfg_port));   // e.g. no CRC generation offloading, etc. (May be improved later!)
-  cfg_port.txmode.mq_mode = ETH_MQ_TX_NONE; // no multi queues
-  cfg_port.rxmode.mq_mode = ETH_MQ_RX_NONE; // no multi queues
+  cfg_port.txmode.mq_mode = RTE_ETH_MQ_TX_NONE; // no multi queues
+  cfg_port.rxmode.mq_mode = RTE_ETH_MQ_RX_NONE; // no multi queues
 
   if (rte_eth_dev_configure(leftport, 1, 1, &cfg_port) < 0)
   {
@@ -560,7 +560,7 @@ int Throughput::init(const char *argv0, uint16_t leftport, uint16_t rightport)
       return -1;
     }
     rte_eth_link_get(leftport, &link_info);
-  } while (link_info.link_status == ETH_LINK_DOWN);
+  } while (link_info.link_status == RTE_ETH_LINK_DOWN);
   trials = 0;
   do
   {
@@ -570,7 +570,7 @@ int Throughput::init(const char *argv0, uint16_t leftport, uint16_t rightport)
       return -1;
     }
     rte_eth_link_get(rightport, &link_info);
-  } while (link_info.link_status == ETH_LINK_DOWN);
+  } while (link_info.link_status == RTE_ETH_LINK_DOWN);
 
   // Some sanity checks: NUMA node of the cores and of the NICs are matching or not...
   if (numa_available() == -1)
@@ -826,7 +826,7 @@ struct rte_mbuf *mkIpv4inIpv6Tun(uint16_t length, rte_mempool *pkt_pool, const c
   mkData(udp_data, data_length);
   udp_hd->dgram_cksum = rte_ipv6_udptcp_cksum(ipv6_hdr, udp_hd); // UDP checksum is calculated and set
   //Kell az IPv4-re külön checksumot számolni?
-  ip_hdr->hdr_checksum = rte_ipv4_cksum(ipv4_hdr); 
+  ipv4_hdr->hdr_checksum = rte_ipv4_cksum(ipv4_hdr); 
   return pkt_mbuf;
 }
 
@@ -1415,6 +1415,9 @@ int send(void *par)
   return 0;
 }
 
+
+/*
+
 // helper function to the generator function below
 void randomPermutation48(lwB4_data *array, uint8_t ip4_suffix_length, uint8_t psid_length){
   uint32_t suffix_field, suffix_min, x; // x for suffix coordinate
@@ -1481,3 +1484,5 @@ int randomPermutationGenerator48(void *par) {
 
   *(p->addr_of_arraypointer) = array;	// set the pointer in the caller
 }
+
+*/

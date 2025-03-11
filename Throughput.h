@@ -95,6 +95,7 @@ public:
   // helper functions (see their description at their definition)
   int findKey(const char *line, const char *key);
   int readConfigFile(const char *filename);
+  int readlwB4Data(const char *filename);
   int readCmdLine(int argc, const char *argv[]);
   int init(const char *argv0, uint16_t leftport, uint16_t rightport);
   virtual int senderPoolSize();

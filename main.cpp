@@ -9,6 +9,8 @@ int main(int argc, const char **argv) {
 	std::cout << RIGHTPORT << std::endl;
 	if ( tp.readConfigFile(CONFIGFILE) < 0 )
     	return -1;
+	if ( tp.readlwB4Data(LWB4DATAFILE) < 0)
+		return -1;
 	if ( tp.readCmdLine(argc,argv) < 0 )
     	return -1;
 	std::cout << "Read CMDLine and ConfFile" << std::endl;

@@ -24,6 +24,7 @@
  */
 
 #define CONFIGFILE "lw4o6.conf"	/* name of the configuration file */
+#define LWB4DATAFILE "lwB4Data.conf" /*name of the file containing informations about lwB4s*/
 #define LINELEN 200             /* max. line length, used by config file reader */
 #define LEFTPORT 0		/* port ID of the "Left" port */
 #define RIGHTPORT 1		/* port ID of the "Right" port */
