@@ -18,6 +18,7 @@
  *  along with siitperf.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+#include <vector>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>

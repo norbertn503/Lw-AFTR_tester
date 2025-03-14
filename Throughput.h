@@ -8,7 +8,7 @@
 ///#include <iostream>
 #include <netinet/in.h>
 //#include <linux/netfilter.h>
-
+#include <vector>
 
 struct lwB4_data
 {
@@ -80,17 +80,17 @@ public:
   uint64_t frames_to_send;                                     // number of frames to send
 
   // lw4o6 parameters
-    uint8_t psid_length;            // The number of BMR's PSID bits
-    uint8_t psid;
-    uint16_t num_of_port_sets;      // The number of port sets that can be obtained according to the psid_length
-    uint16_t num_of_ports;          // The number of ports in each port set
-    uint32_t number_of_lwB4s;             // Number of simulated lwB4s
-    struct in6_addr dut_ipv6_tunnel; // The BMR’s Rule IPv6 Prefix of the MAP address
-    struct in6_addr dut_fw_ipv6;
-    uint32_t lwb4_start_ipv4;
-    uint32_t lwb4_end_ipv4;
-    uint32_t *lwB4_array;
-
+  uint32_t psid_length;            // The number of BMR's PSID bits
+  uint32_t psid;
+  uint16_t num_of_port_sets;      // The number of port sets that can be obtained according to the psid_length
+  uint16_t num_of_ports;          // The number of ports in each port set
+  uint32_t number_of_lwB4s;             // Number of simulated lwB4s
+  struct in6_addr dut_ipv6_tunnel; // The BMR’s Rule IPv6 Prefix of the MAP address
+  struct in6_addr dut_fw_ipv6;
+  uint32_t lwb4_start_ipv4;
+  uint32_t lwb4_end_ipv4;
+  uint32_t *lwB4_array;
+  std::vector<lwB4_data> tmp_lwb4data; // for reading the lwB4 data file
 
   // helper functions (see their description at their definition)
   int findKey(const char *line, const char *key);

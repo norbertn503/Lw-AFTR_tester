@@ -2,7 +2,6 @@
 #include "includes.h"
 #include "defines.h"
 
-
 char coresList[101];  // buffer for preparing the list of lcores for DPDK init (like a command line argument)
 char numChannels[11]; // buffer for printing the number of memory channels into a string for DPDK init (like a command line argument)
 
@@ -28,7 +27,7 @@ Throughput::Throughput(){
   bg_fw_dport_max = 49151;          // default value: as recommended by RFC 4814
   bg_rv_sport_min = 1024;           // default value: as recommended by RFC 4814
   bg_rv_sport_max = 65535;          // default value: as recommended by RFC 4814
-  //lwB4_array = NULL;               
+  //lwB4_array = NULL;
 };
 
 // reports the TSC of the core (in the variable pointed by the input parameter), on which it is running
@@ -64,6 +63,8 @@ int Throughput::findKey(const char *line, const char *key) {
   for ( pos=0; pos<line_len-key_len; pos++ ) {
     if ( line[pos] == '#' ) // comment
       return -1;
+    if (line[pos] == '[')  //new lwB4
+      return -2;
     if ( line[pos] == ' ' || line[pos] == '\t' )
       continue;
     if ( strncmp(line+pos,key,key_len) == 0 )
@@ -120,7 +121,7 @@ int Throughput::readConfigFile(const char *filename) {
     std::cerr << "Input Error: Can't open file '" << filename << "'." << std::endl;
     return -1;
   }
-  
+  std::cout << "READ CONFIG FILE" << std::endl;
   for ( line_no=1; fgets(line, LINELEN+1, f); line_no++ ) {
     if ( (pos = findKey(line, "Tester-BG-Send-IPv6")) >= 0 ) {
       if ( inet_pton(AF_INET6, prune(line+pos), reinterpret_cast<void *>(&tester_bg_send_ipv6)) != 1 ) {
@@ -282,17 +283,17 @@ int Throughput::readConfigFile(const char *filename) {
         return -1;
       }
     } else if ( (pos = findKey(line, "PSID_length")) >= 0 ) {
-      sscanf(line+pos, "%hhu", &psid_length);
+      sscanf(line+pos, "%u", &psid_length);
       if ( psid_length < 1 || psid_length > 16 ) {
         std::cerr << "Input Error: 'PSID_length' must be >= 1 and <= 16." << std::endl;
         return -1;
       }
     } else if ( (pos = findKey(line, "PSID")) >= 0 ) {
-      sscanf(line+pos, "%hhu", &psid);
-      //if ( psid != 0 ) {
-      //  std::cerr << "Input Error: 'PSID' cannot be 0." << std::endl;
-      //  return -1;
-      //}
+      sscanf(line+pos, "%u", &psid); 
+      if ( psid == 0 ) {
+        std::cerr << "Input Error: 'PSID' cannot be 0." << std::endl;
+        return -1;
+      }
     } else if ((pos = findKey(line, "NUM-OF-lwB4s")) >= 0){
       sscanf(line + pos, "%u", &number_of_lwB4s);
       if (number_of_lwB4s < 1 || number_of_lwB4s > 1000000)
@@ -355,6 +356,75 @@ int Throughput::readConfigFile(const char *filename) {
       return -1;
     }
   }
+  return 0;
+}
+
+// reads the config files for lwB4s, creates lwB4_data object for each lwB4 and stores them in Array/Vector
+int Throughput::readlwB4Data(const char *filename) {
+  std::cout << "REA LWB4 CONFIG FILE" << std::endl;
+  FILE *f; 	// file descriptor
+  char line[LINELEN+1]; // buffer for reading a line of the input file
+  int pos; 	// position in the line after the key (parameter name) was found
+  uint8_t *m; 	// pointer to the MAC address being read
+  int line_no;	// line number for error message
+  lwB4_data tmp_obj;
+  bool new_lwB4 = false;
+  int number_of_lwb4 = 0;
+  int test_int;
+  f=fopen(LWB4DATAFILE,"r");
+  if ( f == NULL ) {
+    std::cerr << "Input Error: Can't open file '" << LWB4DATAFILE << "'." << std::endl;
+    return -1;
+  }
+  
+  for ( line_no=1; fgets(line, LINELEN+1, f); line_no++ ) {
+    std::cout << "SOR BEOLVASVA" << std::endl;
+    std::cout <<  *line << std::endl;
+	  if ( (pos = findKey(line, "[]")) == -2 ){
+		std::cout << "Uj object" << std::endl;
+		  if (new_lwB4){
+			   tmp_lwb4data.push_back(tmp_obj);	
+		  }
+		tmp_obj = {};
+		new_lwB4 = true;
+		number_of_lwb4++;
+    }
+    else {
+      std::cout << "NEM UJ OBJECT" << std::endl;
+      if ( (pos = findKey(line, "b4_ipv6_addr")) >= 0 ) {
+        if ( inet_pton(AF_INET6, prune(line+pos), reinterpret_cast<void *>(&tmp_obj.b4_ipv6_addr)) != 1 ) {
+          std::cerr << "Input Error: Bad 'b4_ipv6_addr' address." << std::endl;
+          return -1;
+        }
+      } else if ( (pos = findKey(line, "aftr_tunnel_addr")) >= 0 ) {
+        if ( inet_pton(AF_INET6, prune(line+pos), reinterpret_cast<void *>(&tmp_obj.aftr_tunnel_addr)) != 1 ) {
+          std::cerr << "Input Error: Bad 'aftr_tunnel_addr' address." << std::endl;
+          return -1;
+        }
+      } else if ( (pos = findKey(line, "ipv4_addr")) >= 0 ) {
+        if ( inet_pton(AF_INET, prune(line+pos), reinterpret_cast<void *>(&tmp_obj.ipv4_addr)) != 1 ) {
+          std::cerr << "Input Error: Bad 'ipv4_addr' address." << std::endl;
+          return -1;
+        }
+      }else if ( (pos = findKey(line, "psid_length")) >= 0 ) {
+        sscanf(line+pos, "%d", &tmp_obj.psid_length);
+        std::cout << "PSID_LENGTH:" + tmp_obj.psid_length << std::endl;
+        if ( tmp_obj.psid_length < 1 || tmp_obj.psid_length > 16 ) {
+          std::cerr << "Input Error: 'psid_length' must be >= 1 and <= 16." << std::endl;
+          return -1;
+        }
+      } else if ( (pos = findKey(line, "psid")) >= 0 ) {
+        sscanf(line+pos, "%d",test_int);
+        std::cout << "PSID:" + test_int << std::endl;
+        if ( tmp_obj.psid <= 0 ) {
+          std::cerr << "Input Error: 'psid' cannot be 0 or negative." << std::endl;
+          return -1;
+        }
+      }
+	}
+
+  //utolso objektum mentése vectorba
+} 
   return 0;
 }
 
