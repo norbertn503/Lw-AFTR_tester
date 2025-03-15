@@ -18,6 +18,8 @@
  *  along with siitperf.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+#include <algorithm>
+#include <random>
 #include <vector>
 #include <sys/socket.h>
 #include <netinet/in.h>

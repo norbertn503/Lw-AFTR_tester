@@ -367,10 +367,10 @@ int Throughput::readlwB4Data(const char *filename) {
   int pos; 	// position in the line after the key (parameter name) was found
   uint8_t *m; 	// pointer to the MAC address being read
   int line_no;	// line number for error message
+
   lwB4_data tmp_obj;
   bool new_lwB4 = false;
-  int number_of_lwb4 = 0;
-  int test_int;
+
   f=fopen(LWB4DATAFILE,"r");
   if ( f == NULL ) {
     std::cerr << "Input Error: Can't open file '" << LWB4DATAFILE << "'." << std::endl;
@@ -378,53 +378,57 @@ int Throughput::readlwB4Data(const char *filename) {
   }
   
   for ( line_no=1; fgets(line, LINELEN+1, f); line_no++ ) {
-    std::cout << "SOR BEOLVASVA" << std::endl;
-    std::cout <<  *line << std::endl;
 	  if ( (pos = findKey(line, "[]")) == -2 ){
-		std::cout << "Uj object" << std::endl;
+		  std::cout << "Uj object" << std::endl;
 		  if (new_lwB4){
 			   tmp_lwb4data.push_back(tmp_obj);	
 		  }
-		tmp_obj = {};
-		new_lwB4 = true;
-		number_of_lwb4++;
+		  tmp_obj = {};
+		  new_lwB4 = true;
     }
     else {
       std::cout << "NEM UJ OBJECT" << std::endl;
-      if ( (pos = findKey(line, "b4_ipv6_addr")) >= 0 ) {
+      if ( (pos = findKey(line, "b4-ipv6")) >= 0 ) {
         if ( inet_pton(AF_INET6, prune(line+pos), reinterpret_cast<void *>(&tmp_obj.b4_ipv6_addr)) != 1 ) {
-          std::cerr << "Input Error: Bad 'b4_ipv6_addr' address." << std::endl;
+          std::cerr << "Input Error: Bad 'b4-ipv6' address." << std::endl;
           return -1;
         }
-      } else if ( (pos = findKey(line, "aftr_tunnel_addr")) >= 0 ) {
+      } else if ( (pos = findKey(line, "br-address")) >= 0 ) {
         if ( inet_pton(AF_INET6, prune(line+pos), reinterpret_cast<void *>(&tmp_obj.aftr_tunnel_addr)) != 1 ) {
-          std::cerr << "Input Error: Bad 'aftr_tunnel_addr' address." << std::endl;
+          std::cerr << "Input Error: Bad 'br-address' address." << std::endl;
           return -1;
         }
-      } else if ( (pos = findKey(line, "ipv4_addr")) >= 0 ) {
+      } else if ( (pos = findKey(line, "ipv4")) >= 0 ) {
         if ( inet_pton(AF_INET, prune(line+pos), reinterpret_cast<void *>(&tmp_obj.ipv4_addr)) != 1 ) {
-          std::cerr << "Input Error: Bad 'ipv4_addr' address." << std::endl;
+          std::cerr << "Input Error: Bad 'ipv4' address." << std::endl;
           return -1;
         }
-      }else if ( (pos = findKey(line, "psid_length")) >= 0 ) {
-        sscanf(line+pos, "%d", &tmp_obj.psid_length);
-        std::cout << "PSID_LENGTH:" + tmp_obj.psid_length << std::endl;
+      } else if ( (pos = findKey(line, "psid-length")) >= 0 ) {
+        sscanf(line+pos, "%u", &tmp_obj.psid_length);
         if ( tmp_obj.psid_length < 1 || tmp_obj.psid_length > 16 ) {
           std::cerr << "Input Error: 'psid_length' must be >= 1 and <= 16." << std::endl;
           return -1;
         }
       } else if ( (pos = findKey(line, "psid")) >= 0 ) {
-        sscanf(line+pos, "%d",test_int);
-        std::cout << "PSID:" + test_int << std::endl;
+        sscanf(line+pos, "%u", &tmp_obj.psid);
         if ( tmp_obj.psid <= 0 ) {
           std::cerr << "Input Error: 'psid' cannot be 0 or negative." << std::endl;
           return -1;
         }
       }
-	}
+	  }
+  }   
+  
+  //Save the last lwB4 to the vector
+  if (new_lwB4){
+    tmp_lwb4data.push_back(tmp_obj);	
+  }
 
-  //utolso objektum mentése vectorba
-} 
+  if (tmp_lwb4data.size() != number_of_lwB4s) {
+    std::cerr << "Number of lwB4 number is not the same as declared in lw4o6.conf" << std::endl;
+    return -1;
+  }
+
   return 0;
 }
 
@@ -432,6 +436,7 @@ int Throughput::readlwB4Data(const char *filename) {
 // It may be called only AFTER the execution of readConfigFile
 int Throughput::readCmdLine(int argc, const char *argv[])
 {
+  std::cout << "READ CMD STARTED" << std::endl;
   if (argc < 7)
   {
     printf("argc : %d\n", argc);
@@ -471,7 +476,7 @@ int Throughput::readCmdLine(int argc, const char *argv[])
     std::cerr << "Input Error: Cannot read the value of 'm'." << std::endl;
     return -1;
   }
-
+  std::cout << "READ CMD ENDED" << std::endl;
   return 0;
 }
 
@@ -680,105 +685,60 @@ int Throughput::init(const char *argv0, uint16_t leftport, uint16_t rightport)
   hz = rte_get_timer_hz();                                                       // number of clock cycles per second
   start_tsc = rte_rdtsc() + hz * START_DELAY / 1000;                             // Each active sender starts sending at this time
   finish_receiving = start_tsc + hz * (test_duration + stream_timeout / 1000.0); // Each receiver stops at this time
-
-  num_of_port_sets = pow(2.0, psid_length);
-  num_of_ports = (int)(65536.0 / num_of_port_sets);
-   
-
-  //std::cout << lwb4_start_ipv4 << std::endl;
-  //std::cout << lwb4_end_ipv4 << std::endl;
-  //std::cout << tester_fw_rec_ipv4 << std::endl;
-
   
+  // allocate and build a memory to store the data of all possible simulated CEs.
+  // The number of these CEs is identified as a configuration file parameter
+  
+  thread_local std::random_device rd;
+  thread_local std::mt19937 gen {rd()};
+  std::ranges::shuffle(tmp_lwb4data, gen);
+
+  lwB4_array = (lwB4_data *)rte_malloc("CEs data memory", tmp_lwb4data.size() * sizeof(lwB4_data), 0);
+  if (!lwB4_array)
+    rte_exit(EXIT_FAILURE, "malloc failure!! Can not create memory for CEs data\n");
+
+  for(int i = 0; i < tmp_lwb4data.size(); i++){
+    num_of_port_sets = pow(2.0, tmp_lwb4data.at(i).psid_length);
+    num_of_ports = (int)(65536.0 / num_of_port_sets);
+
+    std::cout << "PSID: " << tmp_lwb4data.at(i).psid << std::endl;
+    std::cout << "PSID-length: " << tmp_lwb4data.at(i).psid_length << std::endl;
+    std::cout << "NUM OF PORTS: " << num_of_ports << std::endl;
     
-    if (lwb4_start_ipv4 < lwb4_end_ipv4){
-      std::cout << "START KISEBB" << std::endl;
-    }else std::cout <<"END KISEBB" << std::endl;
+    tmp_lwb4data.at(i).min_port = num_of_ports * tmp_lwb4data.at(i).psid;
+    std::cout << "MIN PORT: " << tmp_lwb4data.at(i).min_port << std::endl;
 
-
-  //calculate lwB4 IPv4 addresses
-  //Megkapja a kezdő és vég címet, ha ugyan az 1 Cím van, végén megnézi hogy a megadott cím egyezik-e a kalkulált címekkel.
-  //Ha end korábban van mint a start hibával tér vissza
-  if(lwb4_start_ipv4 == lwb4_end_ipv4) {
-    if(number_of_lwB4s != 1){
-      std::cerr << "Error: NUM-OF-lwB4s should be 1 when LWB4-start-IPv4 and LWB4-end-IPv4 are equal, Tester exits." << std::endl;
+    if(tmp_lwb4data.at(i).min_port < 1024){
+      std::cerr << "System Ports can't be used by lwB4s"  << std::endl;
       return -1;
-    }      
-    std::cout << "EGYENLŐ"<< std::endl;
-  } else {
-
-    //uint32_t convert to char*
-    //uint32_t ip = 0xC0A80101;  // 192.168.1.1 in hexadecimal
-/**
-    struct in_addr ip_addr;
-    std::cout << lwb4_end_ipv4 << std::endl;
-    uint32_t start_ip = htonl(lwb4_start_ipv4);
-    uint32_t end_ip = htonl(lwb4_end_ipv4);
-    ip_addr.s_addr = htonl(lwb4_end_ipv4) ; // Convert to network byte order, ez bájtsorrendet cserél htonl()
+    } else if(tmp_lwb4data.at(i).min_port > 65535){
+      std::cerr << "Minimum port for lwB4 can't be greater than 65535"  << std::endl;
+      return -1;
+    }
     
-    char ip_str[INET_ADDRSTRLEN]; // Buffer to store the IP string
-    if (inet_ntop(AF_INET, &ip_addr, ip_str, INET_ADDRSTRLEN) != nullptr) {
-        std::cout << "IP Address: " << ip_str << std::endl;
-    } else {
-        std::cerr << "inet_ntop failed!" << std::endl;
-    }
-    std::cout << ntohl(ip_addr.s_addr) << std::endl;
-    */
-    uint32_t b4_array[number_of_lwB4s] = {};
-    uint32_t start_ip = htonl(lwb4_start_ipv4);
-    uint32_t end_ip = htonl(lwb4_end_ipv4);
-    int count = 0;
-    for(uint32_t ip = start_ip; ip <= end_ip; ++ip){
-      b4_array[count] = ntohl(ip);        //ntohl(ip);    ip;
-      count++;
-    }
-    if(count != number_of_lwB4s){
-      std::cerr << "Error: NUM-OF-lwB4s is not equal the number calculated from lwB4 start and end addresses, Tester exits." << std::endl;
+    tmp_lwb4data.at(i).max_port = tmp_lwb4data.at(i).min_port + num_of_ports -1; 
+    std::cout << "MAX PORT: " << tmp_lwb4data.at(i).max_port << std::endl;
+
+    if(tmp_lwb4data.at(i).max_port > 65535){
+      std::cerr << "Maximum port for lwB4 can't be greater than 65535" << std::endl;
       return -1;
-    }  
-
-    //std::cout << lwB4_array;
-    std::cout << "IP címek száma: " << count << std::endl;
-    struct in_addr ip_addr;
-    for(int i=0; i < count; i++){
-      ip_addr.s_addr = b4_array[i];
-      std::cout << "IP Address uint-ként: " << b4_array[i] << std::endl;
-      char ip_str[INET_ADDRSTRLEN]; // Buffer to store the IP string
-      if (inet_ntop(AF_INET, &ip_addr, ip_str, INET_ADDRSTRLEN) != nullptr) {
-        std::cout << "IP Address: " << ip_str << std::endl;
-      } else {
-        std::cerr << "inet_ntop failed!" << std::endl;
-      }
-
-    } 
-     
+    }
+    tmp_lwb4data.at(i).ipv4_addr_chksum = rte_raw_cksum(&tmp_lwb4data.at(i).ipv4_addr,4); //calculate the IPv4 header checksum
+    
+    std::cout << "-----------------------------" << std::endl;
+    lwB4_array[i] = tmp_lwb4data.at(i);
   }
-   
-  /**
-  randomPermutationGeneratorParameters48 pars;
-  pars.ip4_suffix_length = bmr_ipv4_suffix_length;
-  pars.psid_length = psid_length;
-  pars.hz = rte_get_timer_hz(); // number of clock cycles per second;
-    
-  if (forward)
-    {
-      pars.direction = "forward"; 
-      pars.addr_of_arraypointer = &fwUniqueEAComb;
-      // start randomPermutationGenerator32
-      if ( rte_eal_remote_launch(randomPermutationGenerator48, &pars, cpu_fw_send ) )
-        std::cerr << "Error: could not start randomPermutationGenerator48() for pre-generating unique EA-bits combinations at the " << pars.direction << " sender" << std::endl;
-       rte_eal_wait_lcore(cpu_fw_send);
-    }
-  if (reverse)
-    {
-      pars.direction = "reverse";
-      pars.addr_of_arraypointer = &rvUniqueEAComb;
-      // start randomPermutationGenerator32
-      if ( rte_eal_remote_launch(randomPermutationGenerator48, &pars,  cpu_rv_send ) )
-        std::cerr << "Error: could not start randomPermutationGenerator48() for pre-generating unique EA-bits combinations at the " << pars.direction << " sender" << std::endl;
-      rte_eal_wait_lcore( cpu_rv_send);
-    }
-*/
+  
+  
+  std::cout << "---------RANDOM START----------" << std::endl;
+  for(int i = 0; i < number_of_lwB4s; i++){
+    std::cout << "PSID: " << lwB4_array[i].psid << std::endl;
+    std::cout << "PSID-length: " << lwB4_array[i].psid_length << std::endl;
+    std::cout << "MIN PORT: " << lwB4_array[i].min_port << std::endl;
+    std::cout << "MAX PORT: " << lwB4_array[i].max_port << std::endl;
+    std::cout << "-----------------------------" << std::endl;
+  }
+  
   std::cout << "INIT lefutott" << std::endl;
   return 0;
 } //end init
@@ -950,18 +910,21 @@ int Throughput::senderPoolSize()
 void Throughput::measure(uint16_t leftport, uint16_t rightport) {
   
   senderCommonParameters scp(ipv6_frame_size, ipv4_frame_size, frame_rate, test_duration,
-                            n, m, hz, start_tsc, number_of_lwB4s, num_of_port_sets,
-                            num_of_ports, &dut_ipv6_tunnel, &tester_fw_rec_ipv4, &dut_fw_ipv6, 
-                            &tester_bg_send_ipv6, &tester_bg_rec_ipv6, &tester_fw_send_ipv6, bg_rv_sport_min, bg_rv_sport_max, 
-                            bg_fw_dport_min, bg_fw_dport_max);
-
- if (forward)
+                            n, m, hz, start_tsc, number_of_lwB4s, lwB4_array, &dut_fw_ipv6, 
+                            &tester_bg_send_ipv6, &tester_bg_rec_ipv6
+                            );
+  
+                           // senderCommonParameters scp(ipv6_frame_size, ipv4_frame_size, frame_rate, test_duration, n, m, hz, start_tsc,
+                           //   CE, num_of_CEs, num_of_port_sets, num_of_ports, &dmr_ipv6, &tester_right_ipv6);
+  if (forward)
   { // Left to right direction is active
     
     // set individual parameters for the left sender
     // Initialize the parameter class instance
     senderParameters spars(&scp, pkt_pool_left_sender, leftport, "forward", (ether_addr *)dut_fw_mac, (ether_addr *)tester_fw_mac, 
                            fwd_var_sport, fwd_var_dport, fwd_dport_min, fwd_dport_max);
+  
+    
 
     // start left sender
     if (rte_eal_remote_launch(send, &spars, cpu_fw_send))
@@ -974,15 +937,15 @@ void Throughput::measure(uint16_t leftport, uint16_t rightport) {
     //if (rte_eal_remote_launch(receive, &rpars, cpu_fw_receive))
     //  std::cout << "Error: could not start Right Receiver." << std::endl;
   }
-
+  
+  rte_free(lwB4_array); // release the CEs data memory
 }
 
 // sets the values of the data fields
 senderCommonParameters::senderCommonParameters(uint16_t ipv6_frame_size_, uint16_t ipv4_frame_size_, uint32_t frame_rate_, uint16_t test_duration_,
-                                              uint32_t n_, uint32_t m_, uint64_t hz_, uint64_t start_tsc_, uint32_t number_of_lwB4s_, uint16_t num_of_port_sets_,
-                                              uint16_t num_of_ports_, struct in6_addr *dut_ipv6_tunnel_, uint32_t *tester_fw_rec_ipv4_, struct in6_addr *dut_fw_ipv6_, 
-                                              struct in6_addr *tester_bg_send_ipv6_, struct in6_addr *tester_bg_rec_ipv6_, struct in6_addr *tester_fw_send_ipv6_, uint16_t bg_rv_sport_min_, uint16_t bg_rv_sport_max_, 
-                                              uint16_t bg_fw_dport_min_, uint16_t bg_fw_dport_max_)
+                                              uint32_t n_, uint32_t m_, uint64_t hz_, uint64_t start_tsc_, uint32_t number_of_lwB4s_, lwB4_data *lwB4_array_,
+                                              struct in6_addr *dut_fw_ipv6_, struct in6_addr *tester_bg_send_ipv6_, struct in6_addr *tester_bg_rec_ipv6_ 
+                                              )
 {
 
   ipv6_frame_size = ipv6_frame_size_;
@@ -994,30 +957,21 @@ senderCommonParameters::senderCommonParameters(uint16_t ipv6_frame_size_, uint16
   hz = hz_;
   start_tsc = start_tsc_;
   number_of_lwB4s = number_of_lwB4s_;
-  num_of_port_sets = num_of_port_sets_;
-  num_of_ports = num_of_ports_;
-  dut_ipv6_tunnel = dut_ipv6_tunnel_;
   dut_fw_ipv6 = dut_fw_ipv6_;
   tester_bg_send_ipv6 = tester_bg_send_ipv6_; 
   tester_bg_rec_ipv6 = tester_bg_rec_ipv6_;
-  tester_fw_send_ipv6 = tester_fw_send_ipv6_;
-  tester_fw_rec_ipv4 = tester_fw_rec_ipv4_;
-  bg_rv_sport_min = bg_rv_sport_min_;
-  bg_rv_sport_max = bg_rv_sport_max_;
-  bg_fw_dport_min = bg_fw_dport_min_;
-  bg_fw_dport_max = bg_fw_dport_max_;
+  lwB4_array = lwB4_array_;
 }
 
 // sets the values of the data fields
 senderParameters::senderParameters(class senderCommonParameters *cp_, rte_mempool *pkt_pool_, uint8_t eth_id_, const char *direction_,
-                                  /*lwB4_data *lwB4_array_,*/ struct ether_addr *dst_mac_, struct ether_addr *src_mac_, unsigned var_sport_, unsigned var_dport_,
+                                  struct ether_addr *dst_mac_, struct ether_addr *src_mac_, unsigned var_sport_, unsigned var_dport_,
                                   uint16_t preconfigured_port_min_, uint16_t preconfigured_port_max_)
 {
   cp = cp_;
   pkt_pool = pkt_pool_;
   eth_id = eth_id_;
   direction = direction_;
-  //lwB4_array = lwB4_array_;
   dst_mac = dst_mac_;
   src_mac = src_mac_;
   var_sport = var_sport_;
@@ -1088,7 +1042,7 @@ int send(void *par)
 
   struct rte_mbuf *pkt_mbuf;
 
-  pkt_mbuf = mkTestFrame6(ipv6_frame_size, pkt_pool, direction, dst_mac, src_mac, tester_bg_send_ipv6, tester_bg_rec_ipv6, var_sport, var_dport);// finally, send the frame
+  /*pkt_mbuf = mkTestFrame6(ipv6_frame_size, pkt_pool, direction, dst_mac, src_mac, tester_bg_send_ipv6, tester_bg_rec_ipv6, var_sport, var_dport);// finally, send the frame
   std::cout << "IPV6 csomag elkészült" << std::endl;
   std::cout << ipv6_frame_size << std::endl;
   std::cout << frame_rate << std::endl;
@@ -1484,75 +1438,3 @@ int send(void *par)
   
   return 0;
 }
-
-
-/*
-
-// helper function to the generator function below
-void randomPermutation48(lwB4_data *array, uint8_t ip4_suffix_length, uint8_t psid_length){
-  uint32_t suffix_field, suffix_min, x; // x for suffix coordinate
-  uint16_t psid_field, psid_min, y; // y for psid coordinate
-  uint32_t xsize = pow(2.0,ip4_suffix_length);
-  uint32_t ysize = pow(2.0,psid_length); // 
-  uint64_t size = (xsize-2)*(ysize);  // size of the entire array / -2 to exclude all 0's case(subnet addr) and all 1's case(broadcast addr)
-  uint64_t index, random; 	// index and random variables
-
-  // prepare random permutation using Fisher–Yates shuffle, as implemented by Durstenfeld (in-place)
-  // http://en.wikipedia.org/wiki/Fisher%E2%80%93Yates_shuffle#The_.22inside-out.22_algorithm
-
-  // random number infrastructure is taken from: https://en.cppreference.com/w/cpp/numeric/random/uniform_real_distribution
-  // MT64 is used because of https://medium.com/@odarbelaeze/how-competitive-are-c-standard-random-number-generators-f3de98d973f0
-  // thread_local is used on the basis of https://stackoverflow.com/questions/40655814/is-mersenne-twister-thread-safe-for-cpp
-  thread_local std::random_device rd;  // Will be used to obtain a seed for the random number engine
-  thread_local std::mt19937_64 gen(rd()); // Standard 64-bit mersenne_twister_engine seeded with rd()
-  std::uniform_real_distribution<double> uni_dis(0, 1.0);
-
-  // set the very first element
-  array[0].ip4_suffix = suffix_min = 1;
-  array[0].psid = psid_min = 0;
-  
-  for ( index=1; index<size; index++ ){
-    // prepare the coordinates
-    x = index / ysize;	// suffix field relative to suffix_min
-    y = index % ysize;	// psid field relative to psid_min
-    suffix_field = x + suffix_min;	// real suffix field
-    psid_field = y + psid_min;	// real psid field
-    // generate a random integer in the range [0, index] using uni_dis(gen), a random double in [0, 1).
-    random = uni_dis(gen)*(index+1);
-
-    // condition "if ( random != index )" is left out to spare a branch instruction on the cost of a redundant copy
-    array[index].ip4_suffix = array[random].ip4_suffix;
-    array[index].psid = array[random].psid;
-    array[random].ip4_suffix = suffix_field;
-    array[random].psid = psid_field;
-      
-  }
-
-}
-
-// creates an array of unique pseudorandom EA combinations
-int randomPermutationGenerator48(void *par) {
-  // collecting input parameters:
-  class randomPermutationGeneratorParameters48 *p = (class randomPermutationGeneratorParameters48 *)par;
-  uint8_t ip4_suffix_length = p->ip4_suffix_length;
-  uint8_t psid_length = p->psid_length;
-  uint64_t hz = p->hz;		// just for giving info about execution time
-  const char *direction = p->direction;
-  uint64_t start_gen, end_gen;  // timestamps for the above purpose 
-  lwB4_data *array= NULL;	// array for storing the unique EA combinations
-  uint64_t size = (pow(2.0,ip4_suffix_length)-2)*(pow(2.0,psid_length));  // size of the above array;
-
-  array = (lwB4_data *) rte_malloc("Pre-generated unique EA 48-bits combinations", (sizeof(EAbits48))*size, 128);
-  if ( !array )
-    rte_exit(EXIT_FAILURE, "Error: Can't allocate NUMA local memory for Pre-generated unique EA-bits combinations array for the %s sender!\n", direction);
-  
-  std::cout << "Info: Pre-generating NUMA local unique EA-bits combinations for the " << direction << " sender\n";
-  start_gen = rte_rdtsc();
-  randomPermutation48(array,ip4_suffix_length,psid_length);
-  end_gen = rte_rdtsc();
-  std::cout << "Done. lasted " << 1.0*(end_gen-start_gen)/hz << " seconds for the " << direction << " sender\n";
-
-  *(p->addr_of_arraypointer) = array;	// set the pointer in the caller
-}
-
-*/

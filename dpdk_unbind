@@ -1,2 +1,2 @@
-dpdk-devbind.py -u 0000:31:00.0
-dpdk-devbind.py -u 0000:31:00.1
+dpdk-devbind.py -u 0000:01:00.0
+dpdk-devbind.py -u 0000:01:00.1
