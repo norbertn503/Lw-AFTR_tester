@@ -157,7 +157,7 @@ public:
 
   senderCommonParameters(uint16_t ipv6_frame_size_, uint16_t ipv4_frame_size_, uint32_t frame_rate_, uint16_t test_duration_,
                         uint32_t n_, uint32_t m_, uint64_t hz_, uint64_t start_tsc_, uint32_t number_of_lwB4s_, lwB4_data *lwB4_array_,
-                        struct in6_addr *dut_fw_ipv6_, struct in6_addr *tester_bg_send_ipv6_, struct in6_addr *tester_bg_rec_ipv6_ 
+                        struct in6_addr *dut_ipv6_tunnel_, struct in6_addr *tester_bg_send_ipv6_, struct in6_addr *tester_bg_rec_ipv6_ 
                          );
 };
 

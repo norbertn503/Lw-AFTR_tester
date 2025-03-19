@@ -523,11 +523,11 @@ int Throughput::init(const char *argv0, uint16_t leftport, uint16_t rightport)
     return -1;
   }
 
-  if (!rte_eth_dev_is_valid_port(rightport))
-  {
-    std::cerr << "Error: Network port #" << rightport << " provided as Right Port is not available, Tester exits." << std::endl;
-    return -1;
-  }
+  //if (!rte_eth_dev_is_valid_port(rightport))
+  //{
+  //  std::cerr << "Error: Network port #" << rightport << " provided as Right Port is not available, Tester exits." << std::endl;
+  //  return -1;
+  //}
 
   // prepare for configuring the Ethernet ports
   memset(&cfg_port, 0, sizeof(cfg_port));   // e.g. no CRC generation offloading, etc. (May be improved later!)
@@ -540,11 +540,11 @@ int Throughput::init(const char *argv0, uint16_t leftport, uint16_t rightport)
     return -1;
   }
 
-  if (rte_eth_dev_configure(rightport, 1, 1, &cfg_port) < 0)
-  {
-    std::cerr << "Error: Cannot configure network port #" << rightport << " provided as Right Port, Tester exits." << std::endl;
-    return -1;
-  }
+  //if (rte_eth_dev_configure(rightport, 1, 1, &cfg_port) < 0)
+  //{
+  //  std::cerr << "Error: Cannot configure network port #" << rightport << " provided as Right Port, Tester exits." << std::endl;
+  //  return -1;
+  //}
 
   // Important remark: with no regard whether actual test will be performed in the forward or reverese direcetion,
   // all TX and RX queues MUST be set up properly, otherwise rte_eth_dev_start() will cause segmentation fault.
@@ -591,7 +591,7 @@ int Throughput::init(const char *argv0, uint16_t leftport, uint16_t rightport)
     std::cerr << "Error: Cannot setup TX queue for Left Sender, Tester exits." << std::endl;
     return -1;
   }
-  if (rte_eth_rx_queue_setup(rightport, 0, PORT_RX_QUEUE_SIZE, rte_eth_dev_socket_id(rightport), NULL, pkt_pool_right_receiver) < 0)
+  /*if (rte_eth_rx_queue_setup(rightport, 0, PORT_RX_QUEUE_SIZE, rte_eth_dev_socket_id(rightport), NULL, pkt_pool_right_receiver) < 0)
   {
     std::cerr << "Error: Cannot setup RX queue for Right Receiver, Tester exits." << std::endl;
     return -1;
@@ -600,7 +600,7 @@ int Throughput::init(const char *argv0, uint16_t leftport, uint16_t rightport)
   {
     std::cerr << "Error: Cannot setup TX queue for Right Sender, Tester exits." << std::endl;
     return -1;
-  }
+  }*/
   if (rte_eth_rx_queue_setup(leftport, 0, PORT_RX_QUEUE_SIZE, rte_eth_dev_socket_id(leftport), NULL, pkt_pool_left_receiver) < 0)
   {
     std::cerr << "Error: Cannot setup RX queue for Left Receiver, Tester exits." << std::endl;
@@ -613,11 +613,11 @@ int Throughput::init(const char *argv0, uint16_t leftport, uint16_t rightport)
     std::cerr << "Error: Cannot start network port #" << leftport << " provided as Left Port, Tester exits." << std::endl;
     return -1;
   }
-  if (rte_eth_dev_start(rightport) < 0)
-  {
-    std::cerr << "Error: Cannot start network port #" << rightport << " provided as Right Port, Tester exits." << std::endl;
-    return -1;
-  }
+  //if (rte_eth_dev_start(rightport) < 0)
+  //{
+  //  std::cerr << "Error: Cannot start network port #" << rightport << " provided as Right Port, Tester exits." << std::endl;
+  //  return -1;
+  //}
 
   if (promisc)
   {
@@ -910,12 +910,12 @@ int Throughput::senderPoolSize()
 void Throughput::measure(uint16_t leftport, uint16_t rightport) {
   
   senderCommonParameters scp(ipv6_frame_size, ipv4_frame_size, frame_rate, test_duration,
-                            n, m, hz, start_tsc, number_of_lwB4s, lwB4_array, &dut_fw_ipv6, 
+                            n, m, hz, start_tsc, number_of_lwB4s, lwB4_array, &dut_ipv6_tunnel, 
                             &tester_bg_send_ipv6, &tester_bg_rec_ipv6
                             );
   
                            // senderCommonParameters scp(ipv6_frame_size, ipv4_frame_size, frame_rate, test_duration, n, m, hz, start_tsc,
-                           //   CE, num_of_CEs, num_of_port_sets, num_of_ports, &dmr_ipv6, &tester_right_ipv6);
+                           //   CE, num_of_lwB4s, num_of_port_sets, num_of_ports, &tunnel_addr_ipv6, &tester_right_ipv6);
   if (forward)
   { // Left to right direction is active
     
@@ -944,7 +944,7 @@ void Throughput::measure(uint16_t leftport, uint16_t rightport) {
 // sets the values of the data fields
 senderCommonParameters::senderCommonParameters(uint16_t ipv6_frame_size_, uint16_t ipv4_frame_size_, uint32_t frame_rate_, uint16_t test_duration_,
                                               uint32_t n_, uint32_t m_, uint64_t hz_, uint64_t start_tsc_, uint32_t number_of_lwB4s_, lwB4_data *lwB4_array_,
-                                              struct in6_addr *dut_fw_ipv6_, struct in6_addr *tester_bg_send_ipv6_, struct in6_addr *tester_bg_rec_ipv6_ 
+                                              struct in6_addr *dut_ipv6_tunnel_, struct in6_addr *tester_bg_send_ipv6_, struct in6_addr *tester_bg_rec_ipv6_ 
                                               )
 {
 
@@ -957,7 +957,7 @@ senderCommonParameters::senderCommonParameters(uint16_t ipv6_frame_size_, uint16
   hz = hz_;
   start_tsc = start_tsc_;
   number_of_lwB4s = number_of_lwB4s_;
-  dut_fw_ipv6 = dut_fw_ipv6_;
+  dut_ipv6_tunnel = dut_ipv6_tunnel_;
   tester_bg_send_ipv6 = tester_bg_send_ipv6_; 
   tester_bg_rec_ipv6 = tester_bg_rec_ipv6_;
   lwB4_array = lwB4_array_;
@@ -1018,7 +1018,7 @@ int send(void *par)
   rte_mempool *pkt_pool = p->pkt_pool;
   uint8_t eth_id = p->eth_id;
   const char *direction = p->direction;
-  //CE_data *CE_array = p->CE_array;
+  lwB4_data *lwB4_array = p->lwB4_array;
   struct ether_addr *dst_mac = p->dst_mac;
   struct ether_addr *src_mac = p->src_mac;
   unsigned var_sport = p->var_sport;
@@ -1037,24 +1037,10 @@ int send(void *par)
   // useful to calculate correct checksums 
   //(more specifically, the uncomplemented checksum start value after calculating it by the DPDK rte_ipv4_cksum(), rte_ipv4_udptcp_cksum(), and rte_ipv6_udptcp_cksum() functions
   // when creating the template packets)
-  uint32_t zero_dst_ipv4;
-  struct in6_addr zero_src_ipv6;
+  uint32_t zero_dst_ipv4, zero_src_ipv4, zero_ipv4_lwb4;
+  struct in6_addr zero_src_ipv6,zero_dst_ipv6;
 
-  struct rte_mbuf *pkt_mbuf;
 
-  /*pkt_mbuf = mkTestFrame6(ipv6_frame_size, pkt_pool, direction, dst_mac, src_mac, tester_bg_send_ipv6, tester_bg_rec_ipv6, var_sport, var_dport);// finally, send the frame
-  std::cout << "IPV6 csomag elkészült" << std::endl;
-  std::cout << ipv6_frame_size << std::endl;
-  std::cout << frame_rate << std::endl;
-  while (rte_rdtsc() < start_tsc + sent_frames * hz / frame_rate)
-  std::cout << "ELSŐ while ciklusban" << std::endl;
-  ; // Beware: an "empty" loop, as well as in the next line
-  std::cout << "ELSŐ while ciklus vége" << std::endl;
-  std::cout << "ELSŐ while ciklus vége2" << std::endl;
-  while (!rte_eth_tx_burst(eth_id, 0, &pkt_mbuf, 1))
-  ; // send out the frame
-  std::cout << "LEFUTOTT" << std::endl;
-/*  
   // the dst_ipv4 must initially be "0.0.0.0" in order for the ipv4 header checksum to be calculated correctly by The rte_ipv4_cksum() 
   // and for the udp checksum to be calculated correctly the rte_ipv4_udptcp_cksum()
  // and consequently calculate correct checksums in the mKTestFrame4()
@@ -1064,6 +1050,13 @@ int send(void *par)
     return -1;
   }
 
+  // The src_ipv4 will be set later from lwb4_array.
+  if (inet_pton(AF_INET, "0.0.0.0", reinterpret_cast<void *>(&zero_src_ipv4)) != 1)
+  {
+    std::cerr << "Input Error: Bad virt_src_ipv4 address." << std::endl;
+    return -1;
+  }
+  
   // the src_ipv6 must initially be "::" for the udp checksum to be calculated correctly by the rte_ipv6_udptcp_cksum
   // and consequently calculate correct checksum in the mKTestFrame6()
   if (inet_pton(AF_INET6, "::", reinterpret_cast<void *>(&zero_src_ipv6)) != 1)
@@ -1072,26 +1065,33 @@ int send(void *par)
     return -1;
   }
   
-  // These addresses are for the foreground traffic in the reverse direction
-  // setting the source ipv4 address of the reverse direction to the ipv4 address of the tester right interface
-  uint32_t *src_ipv4 = tester_fw_rec_ipv4;// This would be set without change during testing in the reverse direction.
-                                       // It will represent the ipv4 address of the right interface of the Tester
-  *src_ipv4 = htonl(*src_ipv4);
+  if (inet_pton(AF_INET6, "::", reinterpret_cast<void *>(&zero_dst_ipv6)) != 1)
+  {
+    std::cerr << "Input Error: Bad  virt_dst_ipv6 address." << std::endl;
+    return -1;
+  }
   
-  uint32_t *dst_ipv4 = &zero_dst_ipv4; // This would be variable during testing in the reverse direction.
-                                       // It will represent the simulated CE (BMR-ipv4-prefix + suffix)
-                                       // and is merely specified inside the sending loop using the CE_array
+  // These addresses are for the foreground traffic in the reverse direction
+  // setting the source ipv4 address of the reverse direction to the ipv4 address of the tester right interface, "the remote server"
+  uint32_t *src_ipv4_rev = tester_fw_rec_ipv4;// This would be set without change during testing in the reverse direction.
+                            
+  //*src_ipv4_rev = htonl(*src_ipv4_rev);
+  
+  uint32_t *dst_ipv4_rev = &zero_dst_ipv4; // This would be variable during testing in the reverse direction.
+                                       // It will represent the simulated lwB4, read from lwb4_array
+
+  uint32_t *src_ipv4_forw = &zero_ipv4_lwb4; //This will lwB4 ipv4 address in the forward direction
 
   // These addresses are for the foreground traffic in the forward direction
   struct in6_addr *src_ipv6 = &zero_src_ipv6; // This would be variable during testing in the forward direction.
-                                              // It will represent the simulated CE (MAP address) 
-                                              //and is merely specified inside the sending loop using the CE_array
+                                              // It will represent the simulated lwB4 IPv6 address
+                                              //and is merely specified inside the sending loop using the lwb4_array
                                                
-  struct in6_addr *dst_ipv6 = dmr_ipv6; // This would be set without change during testing in the forward direction.
-                                        // It will represent the DMR IPv6 address.
+  struct in6_addr *dst_ipv6_forw = dut_ipv6_tunnel; // This would be set without change during testing in the forward direction.
+                                        // It will represent the lwAFTR IPv6 tunnel address address.
 
   // These addresses are for the background traffic only
-  struct in6_addr *src_bg = (direction == "forward" ? tester_l_ipv6 : tester_r_ipv6);  
+  struct in6_addr *src_bg = (direction == "forward" ? tester_l_ipv6 : &zero_src_ipv6);  
   struct in6_addr *dst_bg = (direction == "forward" ? tester_r_ipv6 : tester_l_ipv6); 
   
   uint16_t sport_min, sport_max, dport_min, dport_max; // worker port range variables
@@ -1111,7 +1111,7 @@ int send(void *par)
     }
   
   // check whether the CE array is built or not
-   if(!CE_array)
+   if(!lwB4_array)
     rte_exit(EXIT_FAILURE,"No CE array can be accessed by the %s sender",direction);
     
   
@@ -1152,7 +1152,7 @@ int send(void *par)
     if (direction == "reverse")
     {
 
-      fg_pkt_mbuf[i] = mkTestFrame4(ipv4_frame_size, pkt_pool, direction, dst_mac, src_mac, src_ipv4, dst_ipv4, var_sport, var_dport);
+      fg_pkt_mbuf[i] = mkTestFrame4(ipv4_frame_size, pkt_pool, direction, dst_mac, src_mac, src_ipv4_rev, dst_ipv4_rev, var_sport, var_dport);
       pkt = rte_pktmbuf_mtod(fg_pkt_mbuf[i], uint8_t *); // Access the Test Frame in the message buffer
       // the source ipv4 address will not be manipulated as it will permenantly be the tester-right-ipv4 (extracted from the dmr-ipv6 as done above)
       fg_ipv4_chksum[i] = (uint16_t *)(pkt + 24);
@@ -1164,7 +1164,7 @@ int send(void *par)
     }
     else
     { //"forward"
-      fg_pkt_mbuf[i] = mkTestFrame6(ipv6_frame_size, pkt_pool, direction, dst_mac, src_mac, src_ipv6, dst_ipv6, var_sport, var_dport);
+      fg_pkt_mbuf[i] = mkTestFrame6(ipv6_frame_size, pkt_pool, direction, dst_mac, src_mac, src_ipv6, dst_ipv6_forw, var_sport, var_dport);
       pkt = rte_pktmbuf_mtod(fg_pkt_mbuf[i], uint8_t *); // Access the Test Frame in the message buffer
       fg_src_ipv6[i] = (struct in6_addr *)(pkt + 22);    // The source address should be manipulated as it will be the MAP address (i.e. changing each time) in the forward direction
       // The destination address will not be manipulated as it will permenantly be the DMR IPv6 address(as done in the initilization above)
@@ -1425,10 +1425,10 @@ int send(void *par)
     while (!rte_eth_tx_burst(eth_id, 0, &pkt_mbuf, 1))
       ; // send out the frame
 
-    current_CE = (current_CE + 1) % num_of_CEs; // proceed to the next CE element in the CE array
+    current_CE = (current_CE + 1) % num_of_lwB4s; // proceed to the next CE element in the CE array
     i = (i + 1) % N;
   } // this is the end of the sending cycle
-*/
+
   // Now, we check the time
   elapsed_seconds = (double)(rte_rdtsc() - start_tsc) / hz;
   printf("Info: %s sender's sending took %3.10lf seconds.\n", direction, elapsed_seconds);
