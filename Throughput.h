@@ -1,5 +1,3 @@
-
-
 #ifndef Throughput_H
 #define Throughput_H
 
@@ -49,10 +47,10 @@ public:
     uint16_t rev_sport_min; // minumum value for foreground's source port in the reverse direction
     uint16_t rev_sport_max; // maximum value for foreground's source port in the reverse direction
 
-    uint16_t bg_fw_dport_min; // minumum value for background's destination port in the forward direction
-    uint16_t bg_fw_dport_max; // maximum value for background's destination port in the forward direction
-    uint16_t bg_rv_sport_min; // minumum value for background's source port in the reverse direction
-    uint16_t bg_rv_sport_max; // maximum value for background's source port in the reverse direction
+    uint16_t bg_fw_sport_min; // minumum value for background's source port in the forward direction (destination in the reverse direction)
+    uint16_t bg_fw_sport_max; // maximum value for background's source port in the forward direction (destination in the reverse diretion)
+    uint16_t bg_fw_dport_min; // minumum value for background's destination port in the forward direction (source in the reverse direction)
+    uint16_t bg_fw_dport_max; // maximum value for background's destination port in the forward direction (source in the reverse direction)
 
     int cpu_fw_send;    // lcore for forward direction Sender
     int cpu_fw_receive;  // lcore for forward direction Receiver
@@ -108,6 +106,14 @@ public:
   Throughput();
 };
 
+// send test frame
+int send(void *par);
+
+// receive and count test frames
+int receive(void *par);
+
+// receive and count test frames
+int receive(void *par);
 
 struct rte_mbuf *mkTestFrame4(uint16_t length, rte_mempool *pkt_pool, const char *direction,
                               const struct ether_addr *dst_mac, const struct rte_ether_addr *src_mac,
@@ -140,25 +146,21 @@ public:
   uint64_t start_tsc;       
   uint64_t frames_to_send;  
   uint32_t number_of_lwB4s;
-  uint16_t num_of_port_sets;
-  uint16_t num_of_ports;
+  lwB4_data *lwB4_array;
+
+  uint32_t *tester_fw_rec_ipv4;
   struct in6_addr *dut_ipv6_tunnel; //
-  struct in6_addr *dut_fw_ipv6;
   struct in6_addr *tester_bg_send_ipv6; 
   struct in6_addr *tester_bg_rec_ipv6;
-  struct in6_addr *tester_fw_send_ipv6;
-  uint32_t *tester_fw_rec_ipv4;
-  uint16_t bg_fw_dport_min; 
-  uint16_t bg_fw_dport_max; 
-  uint16_t bg_rv_sport_min; 
-  uint16_t bg_rv_sport_max;
-  lwB4_data *lwB4_array;
   
+  uint16_t fw_dport_min; 
+  uint16_t fw_dport_max;
 
   senderCommonParameters(uint16_t ipv6_frame_size_, uint16_t ipv4_frame_size_, uint32_t frame_rate_, uint16_t test_duration_,
                         uint32_t n_, uint32_t m_, uint64_t hz_, uint64_t start_tsc_, uint32_t number_of_lwB4s_, lwB4_data *lwB4_array_,
-                        struct in6_addr *dut_ipv6_tunnel_, struct in6_addr *tester_bg_send_ipv6_, struct in6_addr *tester_bg_rec_ipv6_ 
-                         );
+                        struct in6_addr *dut_ipv6_tunnel_, uint32_t *tester_fw_rec_ipv4_, in6_addr *tester_bg_send_ipv6_, struct in6_addr *tester_bg_rec_ipv6_,
+                        uint16_t fw_dport_min_, uint16_t fw_dport_max_
+                        );
 };
 
 class senderParameters
@@ -168,21 +170,30 @@ public:
   rte_mempool *pkt_pool; // sender's packet pool
   uint8_t eth_id; // ethernet ID
   const char *direction; // test direction (forward or reverse)
-  lwB4_data *lwB4_array;
   struct ether_addr *dst_mac, *src_mac; // destination and source mac addresses
-  unsigned var_sport, var_dport; // how source and destination port numbers vary? 1:increase, 2:decrease, or 3:pseudorandomly change
-  uint16_t preconfigured_port_min, preconfigured_port_max; // The preconfigured range of ports (i.e., destination in case of forward and source in case of reverse)
+  
+  uint16_t bg_fw_sport_min; 
+  uint16_t bg_fw_sport_max;
+  uint16_t bg_fw_dport_min; 
+  uint16_t bg_fw_dport_max; 
+
+  //unsigned var_sport, var_dport; // how source and destination port numbers vary? 1:increase, 2:decrease, or 3:pseudorandomly change
+  //suint16_t preconfigured_port_min, preconfigured_port_max; // The preconfigured range of ports (i.e., destination in case of forward and source in case of reverse)
   
   senderParameters(class senderCommonParameters *cp_, rte_mempool *pkt_pool_, uint8_t eth_id_, const char *direction_,
-                   struct ether_addr *dst_mac_, struct ether_addr *src_mac_, unsigned var_sport_, unsigned var_dport_,
-                   uint16_t preconfigured_port_min_, uint16_t preconfigured_port_max_
+                   struct ether_addr *dst_mac_, struct ether_addr *src_mac_, uint16_t bg_fw_sport_min_, uint16_t bg_fw_sport_max_, uint16_t bg_fw_dport_min_,
+                   uint16_t bg_fw_dport_max_
                    );
 };
 
-// send test frame
-int send(void *par);
+// to store parameters for each receiver
+class receiverParameters
+{
+public:
+  uint64_t finish_receiving; // this one is common, but it was not worth dealing with it.
+  uint8_t eth_id;
+  const char *direction;
 
-// receive and count test frames
-int receive(void *par);
-
+  receiverParameters(uint64_t finish_receiving_, uint8_t eth_id_, const char *direction_);
+};
 #endif

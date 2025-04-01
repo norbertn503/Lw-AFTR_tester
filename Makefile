@@ -6,8 +6,21 @@ APP = lw4o6_tester
 
 CC = g++
 
-# all source are stored in SRCS-y
-SRCS-y := main.cpp Throughput.cpp
+# all source are stored in SRCS-y main.cpp Throughput.cpp
+SRCS-y := 
+
+ifeq ($(TARGET),tp)
+    SRCS-y := main.cpp Throughput.cpp
+endif
+
+ifeq ($(TARGET),lat)
+    SRCS-y := main-lat.cpp Latency.cpp
+endif
+
+ifeq ($(TARGET),pdv)
+    SRCS-y := main-pdv.cpp PDV.cpp
+endif
+
 
 PKGCONF ?= pkg-config
 
