@@ -544,7 +544,7 @@ int Throughput::init(const char *argv0, uint16_t leftport, uint16_t rightport)
     return -1;
   }
 
-  // Important remark: with no regard whether actual test will be performed in the forward or reverese direcetion,
+  // Important remark: with no regard whether actual test will be performed in the forward or reverese direction,
   // all TX and RX queues MUST be set up properly, otherwise rte_eth_dev_start() will cause segmentation fault.
   // Sender pool size calculation uses 0 instead of num_{left,right}_nets, when no actual frame sending is needed.
 
@@ -747,8 +747,7 @@ int Throughput::init(const char *argv0, uint16_t leftport, uint16_t rightport)
     std::cout << "MIN PORT: " << lwB4_array[i].min_port << std::endl;
     std::cout << "MAX PORT: " << lwB4_array[i].max_port << std::endl;
     std::cout << "-----------------------------" << std::endl;
-  }
-*/
+  }*/
 
   std::cout << "INIT lefutott" << std::endl;
   return 0;
@@ -920,18 +919,24 @@ int Throughput::senderPoolSize()
 // performs throughput (or frame loss rate) measurement
 void Throughput::measure(uint16_t leftport, uint16_t rightport) {
   std::cout << "measure runs on CPU core: " << rte_lcore_id() << std::endl;
-  senderCommonParameters scp(ipv6_frame_size, ipv4_frame_size, frame_rate, test_duration,
+  /*senderCommonParameters scp(ipv6_frame_size, ipv4_frame_size, frame_rate, test_duration,
                             n, m, hz, start_tsc, number_of_lwB4s, lwB4_array, &dut_ipv6_tunnel, &tester_fw_rec_ipv4,
                             &tester_bg_send_ipv6, &tester_bg_rec_ipv6, fwd_dport_min, fwd_dport_max
-                            );
+                            );*/
+  senderCommonParameters scp,scp2;
+  senderParameters spars, spars2;
+  receiverParameters rpars, rpars2;
   
   if (forward)
   { // Left to right direction is active
-    
+    scp = senderCommonParameters(ipv6_frame_size, ipv4_frame_size, frame_rate, test_duration,
+      n, m, hz, start_tsc, number_of_lwB4s, lwB4_array, &dut_ipv6_tunnel, &tester_fw_rec_ipv4,
+      &tester_bg_send_ipv6, &tester_bg_rec_ipv6, fwd_dport_min, fwd_dport_max
+      );
     // set individual parameters for the left sender
     // Initialize the parameter class instance
 
-    senderParameters spars(&scp, pkt_pool_left_sender, leftport, "forward", (ether_addr *)dut_fw_mac, (ether_addr *)tester_fw_mac, bg_fw_sport_min, bg_fw_sport_max,
+    spars = senderParameters(&scp, pkt_pool_left_sender, leftport, "forward", (ether_addr *)dut_fw_mac, (ether_addr *)tester_fw_mac, bg_fw_sport_min, bg_fw_sport_max,
                           bg_fw_dport_min, bg_fw_dport_max);
 
     // start left sender
@@ -939,33 +944,37 @@ void Throughput::measure(uint16_t leftport, uint16_t rightport) {
       std::cout << "Error: could not start Left Sender." << std::endl;
 
     // set parameters for the right receiver
-    receiverParameters rpars(finish_receiving, rightport, "forward");
+    rpars = receiverParameters(finish_receiving, rightport, "forward");
 
     // start right receiver
     if (rte_eal_remote_launch(receive, &rpars, cpu_fw_receive))
       std::cout << "Error: could not start Right Receiver." << std::endl;
   }
+
   if (reverse) 
-  {/*
+  {
     // Right to Left direction is active
-    
+    scp2 = senderCommonParameters(ipv6_frame_size, ipv4_frame_size, frame_rate, test_duration,
+      n, m, hz, start_tsc, number_of_lwB4s, lwB4_array, &dut_ipv6_tunnel, &tester_fw_rec_ipv4,
+      &tester_bg_send_ipv6, &tester_bg_rec_ipv6, fwd_dport_min, fwd_dport_max
+      );
     // set individual parameters for the right sender
     // Initialize the parameter class instance
-    senderParameters spars(&scp, pkt_pool_right_sender, rightport, "reverse", (ether_addr *)dut_fw_mac, (ether_addr *)tester_fw_mac, bg_fw_sport_min, bg_fw_sport_max,
+    spars2 = senderParameters(&scp2, pkt_pool_right_sender, rightport, "reverse", (ether_addr *)dut_fw_mac, (ether_addr *)tester_fw_mac, bg_fw_sport_min, bg_fw_sport_max,
                           bg_fw_dport_min, bg_fw_dport_max);
     //senderParameters spars(&scp, pkt_pool_right_sender, rightport, "reverse", (rte_ether_addr *)dut_fw_mac, (rte_ether_addr *)tester_fw_mac,
     //                      bg_fw_sport_min, bg_fw_sport_max, bg_fw_dport_min, bg_fw_dport_max);
 
     // start right sender
-    if (rte_eal_remote_launch(send, &spars, cpu_rv_send))
+    if (rte_eal_remote_launch(send, &spars2, cpu_rv_send))
       std::cout << "Error: could not start Right Sender." << std::endl;
 
     // set parameters for the left receiver
-    receiverParameters rpars(finish_receiving, leftport, "reverse");
+    rpars2 = receiverParameters(finish_receiving, leftport, "reverse");
 
     // start left receiver
-    if (rte_eal_remote_launch(receive, &rpars, cpu_rv_receive))
-      std::cout << "Error: could not start Left Receiver." << std::endl; */
+    if (rte_eal_remote_launch(receive, &rpars2, cpu_rv_receive))
+      std::cout << "Error: could not start Left Receiver." << std::endl; 
   }
 
   std::cout << "Info: Testing started." << std::endl;
@@ -1014,6 +1023,9 @@ senderCommonParameters::senderCommonParameters(uint16_t ipv6_frame_size_, uint16
   fw_dport_max = fw_dport_max_;
 }
 
+senderCommonParameters::senderCommonParameters(){}
+
+
 // sets the values of the data fields
 senderParameters::senderParameters(class senderCommonParameters *cp_, rte_mempool *pkt_pool_, uint8_t eth_id_, const char *direction_,
                                   struct ether_addr *dst_mac_, struct ether_addr *src_mac_, uint16_t bg_fw_sport_min_, uint16_t bg_fw_sport_max_, uint16_t bg_fw_dport_min_,
@@ -1032,6 +1044,8 @@ senderParameters::senderParameters(class senderCommonParameters *cp_, rte_mempoo
   bg_fw_dport_max = bg_fw_dport_max_;
 }
 
+senderParameters::senderParameters(){}
+
 // sets the values of the data fields
 receiverParameters::receiverParameters(uint64_t finish_receiving_, uint8_t eth_id_, const char *direction_)
 {
@@ -1039,7 +1053,7 @@ receiverParameters::receiverParameters(uint64_t finish_receiving_, uint8_t eth_i
   eth_id = eth_id_;
   direction = direction_;
 }
-
+receiverParameters::receiverParameters(){}
 
 // sends Test Frames for throughput (or frame loss rate) measurement
 int send(void *par)
@@ -1076,7 +1090,7 @@ int send(void *par)
 
   // parameters which are different for the Left sender and the Right sender
   rte_mempool *pkt_pool = p->pkt_pool;
-  
+  std::cout << p->direction << " direction ÁTADÁSKOR" << std::endl;
   uint8_t eth_id = p->eth_id;
   const char *direction = p->direction;
   struct ether_addr *dst_mac = p->dst_mac;
@@ -1222,7 +1236,6 @@ Set port range for bg traffic based on conf file
     // create a foreground Test Frame
     if (direction == "reverse")
     {
-      std::cout << "IPv4" << std::endl;
       fg_pkt_mbuf[i] = mkTestFrame4(ipv4_frame_size, pkt_pool, direction, dst_mac, src_mac, src_ipv4_rev, dst_ipv4_rev, 0, 0); // TODO RM var_port-s from param list
       pkt = rte_pktmbuf_mtod(fg_pkt_mbuf[i], uint8_t *); // Access the Test Frame in the message buffer
       // the source ipv4 address will not be manipulated as it will permenantly be the tester-right-ipv4 (extracted from the dmr-ipv6 as done above)
@@ -1281,6 +1294,7 @@ Set port range for bg traffic based on conf file
   int fore=0;
   int back=0;
   // naive sender version: it is simple and fast
+  std::cout << direction << " IS active before main sending frame" << std::endl;
   for (sent_frames = 0; sent_frames < frames_to_send; sent_frames++)
   { // Main cycle for the number of frames to send
     // set the temporary variables (including several pointers) to handle the right pre-generated Test Frame
@@ -1303,13 +1317,13 @@ Set port range for bg traffic based on conf file
 
         std::uniform_int_distribution<int> uni_dis_sport(lwB4_array[current_lwB4].min_port, lwB4_array[current_lwB4].max_port); // uniform distribution in [sport_min, sport_max]
         sp = uni_dis_sport(gen_sport);
-        std::cout << "SOURCE PORT RANDOM: " <<sp <<std::endl;
+        std::cout << "FORWARD SOURCE PORT RANDOM: " <<sp <<std::endl;
         *udp_sport = htons(sp); // set the source port 
         chksum += *udp_sport; // and add it to the UDP checksum
 
         std::uniform_int_distribution<int> uni_dis_dport(dport_min, dport_max); // uniform distribution in [sport_min, sport_max]
         sp = uni_dis_dport(gen_sport);
-        std::cout << "DESTINATION PORT RANDOM: " <<sp <<std::endl;
+        std::cout << "FORWARD DESTINATION PORT RANDOM: " <<sp <<std::endl;
         *udp_dport = htons(sp); // set the source port 
         chksum += *udp_dport; // and add it to the UDP checksum
       }
@@ -1336,11 +1350,13 @@ Set port range for bg traffic based on conf file
         dp = uni_dis_dport(gen_dport);
         *udp_dport = htons(dp); // set the destination port 
         chksum += *udp_dport; // and add it to the UDP checksum
+        std::cout << "REVERSE SOURCE PORT RANDOM: " << sp <<std::endl;
 
         std::uniform_int_distribution<int> uni_dis_sport(dport_min, dport_max); // uniform distribution in [sport_min, sport_max]
         sp = uni_dis_sport(gen_sport);
         *udp_sport = htons(sp); // set the source port 
         chksum += *udp_sport; // and add it to the UDP checksum
+        std::cout << "REVERSE DESTINATION PORT RANDOM: " << sp <<std::endl;
       }
     }
     else

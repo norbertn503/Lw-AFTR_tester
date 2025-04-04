@@ -161,6 +161,7 @@ public:
                         struct in6_addr *dut_ipv6_tunnel_, uint32_t *tester_fw_rec_ipv4_, in6_addr *tester_bg_send_ipv6_, struct in6_addr *tester_bg_rec_ipv6_,
                         uint16_t fw_dport_min_, uint16_t fw_dport_max_
                         );
+  senderCommonParameters();
 };
 
 class senderParameters
@@ -184,6 +185,8 @@ public:
                    struct ether_addr *dst_mac_, struct ether_addr *src_mac_, uint16_t bg_fw_sport_min_, uint16_t bg_fw_sport_max_, uint16_t bg_fw_dport_min_,
                    uint16_t bg_fw_dport_max_
                    );
+  
+  senderParameters();
 };
 
 // to store parameters for each receiver
@@ -195,5 +198,6 @@ public:
   const char *direction;
 
   receiverParameters(uint64_t finish_receiving_, uint8_t eth_id_, const char *direction_);
+  receiverParameters();
 };
 #endif

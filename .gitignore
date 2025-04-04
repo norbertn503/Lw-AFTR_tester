@@ -4,3 +4,5 @@ build/*
 *.log
 *.out
 *.sh
+dpdk_bind
+dpdk_unbind
