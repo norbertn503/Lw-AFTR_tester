@@ -1480,7 +1480,7 @@ int receive(void *par)
 
     for (i = 0; i < frames; i++)
     { 
-      uint8_t *pkt = rte_pktmbuf_mtod(pkt_mbufs[i], uint8_t *); // Access the Test Frame in the message buffer
+      uint8_t *pkt = rte_pktmbuf_mtod(pkt_mbufs[i], uint8_t *); // Access the Test Frame in the message bufferq
 
       // check EtherType at offset 12: IPv6, IPv4, or anything else
       //if (*(uint16_t *)&pkt[12] == ipv6)
