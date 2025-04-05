@@ -1235,7 +1235,8 @@ Set port range for bg traffic based on conf file
   std::cout << "Pool size: " << pkt_pool->size  << std::endl;
   std::cout << "Direction: " << direction << std::endl;
   std::cout <<"-----------------------------------------------------" << std::endl;
- // creating buffers of template test frames
+ 
+  // creating buffers of template test frames
  for (i = 0; i < N; i++)
   {
     // create a foreground Test Frame
@@ -1307,8 +1308,7 @@ Set port range for bg traffic based on conf file
   thread_local std::mt19937_64 gen_sport(rd_sport()); // Standard 64-bit mersenne_twister_engine seeded with rd()
   thread_local std::random_device rd_dport;           // Will be used to obtain a seed for the random number engines
   thread_local std::mt19937_64 gen_dport(rd_dport()); // Standard 64-bit mersenne_twister_engine seeded with rd()
-  int fore=0;
-  int back=0;
+
   // naive sender version: it is simple and fast
   std::cout << direction << " IS active before main sending frame" << std::endl;
   for (sent_frames = 0; sent_frames < frames_to_send; sent_frames++)
@@ -1317,7 +1317,6 @@ Set port range for bg traffic based on conf file
     if (sent_frames % n < m)
     {
       // foreground frame is to be sent
-      fore++;
       psid = lwB4_array[current_lwB4].psid;
       chksum = fg_udp_chksum_start; // restore the uncomplemented UDP checksum to add the values of the varying fields
       udp_sport = fg_udp_sport[i];
@@ -1393,7 +1392,6 @@ Set port range for bg traffic based on conf file
     {
       // background frame is to be sent
       // from here, we need to handle the background frame identified by the temporary variables
-      back++;
       chksum = bg_udp_chksum_start; // restore the uncomplemented UDP checksum to add the values of the varying fields
       udp_sport = bg_udp_sport[i];
       udp_dport = bg_udp_dport[i];
@@ -1423,14 +1421,12 @@ Set port range for bg traffic based on conf file
     chksum = ((chksum & 0xffff0000) >> 16) + (chksum & 0xffff); // calculate 16-bit one's complement sum
     chksum = (~chksum) & 0xffff;                                // make one's complement
    
-    //if (direction == "reverse")
-    //  {
-        if (chksum == 0)                                        // checksum should not be 0 (0 means, no checksum is used)
-          chksum = 0xffff;
-          std::cout << "--------------CHECKSUM NULLA---------" << std::endl;
-      //}
+
+    if (chksum == 0){                                        // checksum should not be 0 (0 means, no checksum is used)
+      chksum = 0xffff;
+    }
     *udp_chksum = (uint16_t)chksum; // set the UDP checksum in the frame
-    std::cout << "UDP CHECKSUM " << udp_chksum << std::endl;
+
     // finally, send the frame
     while (rte_rdtsc() < start_tsc + sent_frames * hz / frame_rate)
       ; // Beware: an "empty" loop, as well as in the next line
@@ -1448,10 +1444,7 @@ Set port range for bg traffic based on conf file
   printf("Info: %s sender's sending took %3.10lf seconds.\n", direction, elapsed_seconds);
   if (elapsed_seconds > test_duration * TOLERANCE)
     rte_exit(EXIT_FAILURE, "%s sending exceeded the %3.10lf seconds limit, the test is invalid.\n", direction, test_duration * TOLERANCE);
-  printf("%s frames sent: %lu\n", direction, sent_frames);
-
-  std::cout << "-----Background frames: " << back << std::endl;
-  
+  printf("%s frames sent: %lu\n", direction, sent_frames);  
 
   return 0;
 }
@@ -1492,6 +1485,13 @@ int receive(void *par)
         received++;
         /* check if IPv6 Next Header is UDP, and the first 8 bytes of UDP data is 'IDENTIFY' */
         if (likely(pkt[20] == 17 && *(uint64_t *)&pkt[62] == *id))
+          received++;
+      }
+      if (*(uint16_t *)&pkt[12] == ipv6)
+      { /* IPv4 in IPv6 */
+        received++;
+        /* check if IPv6 Next Header is IPIP, and the first 8 bytes of UDP data is 'IDENTIFY' */
+        if (likely(pkt[20] == 4 && *(uint64_t *)&pkt[22] == *id))
           received++;
       }
       else if (*(uint16_t *)&pkt[12] == ipv4)
