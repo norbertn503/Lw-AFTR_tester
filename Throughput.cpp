@@ -827,11 +827,11 @@ void mkUdpHeader(struct rte_udp_hdr *udp, uint16_t length, unsigned var_sport, u
 }
 
 // creates and IPv6 header
-void mkIpv6Header(struct rte_ipv6_hdr *ip, uint16_t length, struct in6_addr *src_ip, struct in6_addr *dst_ip)
+void mkIpv6Header(struct rte_ipv6_hdr *ip, uint16_t length, struct in6_addr *src_ip, struct in6_addr *dst_ip, uint8_t proto)
 {
   ip->vtc_flow = htonl(0x60000000); // Version: 6, Traffic class: 0, Flow label: 0
   ip->payload_len = htons(length - sizeof(rte_ipv6_hdr));
-  ip->proto = 0x11; // UDP
+  ip->proto = proto; // 0x04 for IPIP, 0x11 for UDP
   ip->hop_limits = 0x0A;
   rte_mov16((uint8_t *)&ip->src_addr, (uint8_t *)src_ip);
   rte_mov16((uint8_t *)&ip->dst_addr, (uint8_t *)dst_ip);
@@ -846,25 +846,25 @@ struct rte_mbuf *mkTestIpv4inIpv6Tun(uint16_t length, rte_mempool *pkt_pool, con
   struct rte_mbuf *pkt_mbuf = rte_pktmbuf_alloc(pkt_pool); // message buffer for the Test Frame
   if (!pkt_mbuf)
     rte_exit(EXIT_FAILURE, "Error: %s sender can't allocate a new mbuf for the Test Frame! \n", direction);
-  length -= RTE_ETHER_CRC_LEN;                                                                                       // exclude CRC from the frame length
-  pkt_mbuf->pkt_len = pkt_mbuf->data_len = length;                                                               // set the length in both places
-  uint8_t *pkt = rte_pktmbuf_mtod(pkt_mbuf, uint8_t *);                                                          // Access the Test Frame in the message buffer
+  length -= RTE_ETHER_CRC_LEN;
+  pkt_mbuf->pkt_len = pkt_mbuf->data_len = length;
+  uint8_t *pkt = rte_pktmbuf_mtod(pkt_mbuf, uint8_t *);
   rte_ether_hdr *eth_hdr = reinterpret_cast<struct rte_ether_hdr *>(pkt);                                                // Ethernet header
   rte_ipv6_hdr *ipv6_hdr = reinterpret_cast<rte_ipv6_hdr *>(pkt + sizeof(rte_ether_hdr));                        // IPv6 header
   rte_ipv4_hdr *ipv4_hdr = reinterpret_cast<rte_ipv4_hdr *>(pkt + sizeof(rte_ether_hdr) + sizeof(rte_ipv6_hdr));    // IPv4 header                                      
-  rte_udp_hdr *udp_hd = reinterpret_cast<rte_udp_hdr *>(pkt + sizeof(rte_ether_hdr) + sizeof(rte_ipv6_hdr) + sizeof(rte_ipv4_hdr));                     // UDP header
-  uint8_t *udp_data = reinterpret_cast<uint8_t *>(pkt + sizeof(rte_ether_hdr) + sizeof(rte_ipv4_hdr) + sizeof(rte_ipv6_hdr) + sizeof(rte_udp_hdr)); // UDP data
-
+  rte_udp_hdr *udp_hd = reinterpret_cast<rte_udp_hdr *>(pkt + sizeof(rte_ether_hdr) + sizeof(rte_ipv6_hdr) + sizeof(rte_ipv4_hdr));     // UDP header
+  uint8_t *udp_data = reinterpret_cast<uint8_t *>(pkt + sizeof(rte_ether_hdr) + sizeof(rte_ipv6_hdr) + sizeof(rte_ipv4_hdr) + sizeof(rte_udp_hdr)); // UDP data
+  
   mkEthHeader(eth_hdr, dst_mac, src_mac, 0x86DD); // contains an IPv6 packet
   int ipv6_length = length - sizeof(rte_ether_hdr);
-  mkIpv6Header(ipv6_hdr, ipv6_length, src_ipv6, dst_ipv6);
+  mkIpv6Header(ipv6_hdr, ipv6_length, src_ipv6, dst_ipv6, 0x04); //0x04 for IPIP
   int ipv4_length = ipv6_length - sizeof(rte_ipv6_hdr);
   mkIpv4Header(ipv4_hdr, ipv4_length, src_ipv4, dst_ipv4); // Does not set IPv4 header checksum
   int udp_length = ipv4_length - sizeof(rte_ipv4_hdr); // No IP Options are used
   mkUdpHeader(udp_hd, udp_length, var_sport, var_dport);
   int data_length = udp_length - sizeof(rte_udp_hdr);
   mkData(udp_data, data_length);
-  udp_hd->dgram_cksum = rte_ipv6_udptcp_cksum(ipv6_hdr, udp_hd); // UDP checksum is calculated and set
+  udp_hd->dgram_cksum = rte_ipv4_udptcp_cksum(ipv4_hdr, udp_hd); // UDP checksum is calculated and set
   //Kell az IPv4-re külön checksumot számolni?
   ipv4_hdr->hdr_checksum = rte_ipv4_cksum(ipv4_hdr); 
   return pkt_mbuf;
@@ -887,7 +887,7 @@ struct rte_mbuf *mkTestFrame6(uint16_t length, rte_mempool *pkt_pool, const char
 
   mkEthHeader(eth_hdr, dst_mac, src_mac, 0x86DD); // contains an IPv6 packet
   int ip_length = length - sizeof(rte_ether_hdr);
-  mkIpv6Header(ip_hdr, ip_length, src_ip, dst_ip);
+  mkIpv6Header(ip_hdr, ip_length, src_ip, dst_ip, 0x11); //0x04 for UDP
   int udp_length = ip_length - sizeof(rte_ipv6_hdr); // No IP Options are used
   mkUdpHeader(udp_hd, udp_length, var_sport, var_dport);
   int data_length = udp_length - sizeof(rte_udp_hdr);
@@ -953,6 +953,7 @@ void Throughput::measure(uint16_t leftport, uint16_t rightport) {
 
   if (reverse) 
   {
+    std::cout << "REVERSE FORGALOM VAN" << std::endl;
     // Right to Left direction is active
     scp2 = senderCommonParameters(ipv6_frame_size, ipv4_frame_size, frame_rate, test_duration,
       n, m, hz, start_tsc, number_of_lwB4s, lwB4_array, &dut_ipv6_tunnel, &tester_fw_rec_ipv4,
@@ -982,11 +983,13 @@ void Throughput::measure(uint16_t leftport, uint16_t rightport) {
   // wait until active senders and receivers finish
   if (forward)
   {
+    std::cout << "FORWARD VÁRAKOZÁS" <<std::endl;
     rte_eal_wait_lcore(cpu_fw_send);
     rte_eal_wait_lcore(cpu_fw_receive);
   }
   if (reverse)
   {
+    std::cout << "REVERSE VÁRAKOZÁS" <<std::endl;
     rte_eal_wait_lcore(cpu_rv_send);
     rte_eal_wait_lcore(cpu_rv_receive);
   }
@@ -1209,30 +1212,32 @@ Set port range for bg traffic based on conf file
   uint8_t *pkt;                                                // working pointer to the current frame (in the message buffer)
   
   //IP workers
-  uint32_t *fg_dst_ipv4[N], *fg_src_ipv4[N];
+  uint32_t *fg_dst_ipv4[N], *fg_src_ipv4[N], *fg_dst_tun_ipv4[N], *fg_src_tun_ipv4[N];
   struct in6_addr *fg_src_ipv6[N], *fg_dst_ipv6[N];
   struct in6_addr *bg_src_ipv6[N], *bg_dst_ipv6[N];
-  uint16_t *fg_ipv4_chksum[N];
+  uint16_t *fg_ipv4_chksum[N], *fg_tun_ipv4_chksum[N];
   
   //UDP workers
   uint16_t *fg_udp_sport[N], *fg_udp_dport[N], *fg_udp_chksum[N], *bg_udp_sport[N], *bg_udp_dport[N], *bg_udp_chksum[N]; 
   uint16_t *udp_sport, *udp_dport, *udp_chksum;   
 
-  uint16_t fg_udp_chksum_start, bg_udp_chksum_start, fg_ipv4_chksum_start; // starting values (uncomplemented checksums taken from the original frames created by mKTestFrame functions)                    
+  uint16_t fg_udp_chksum_start, bg_udp_chksum_start, fg_ipv4_chksum_start, fg_tun_ipv4_chksum_start; // starting values (uncomplemented checksums taken from the original frames created by mKTestFrame functions)                    
   uint32_t chksum = 0; // temporary variable for UDP checksum calculation
   uint32_t ip_chksum = 0; //temporary variable for IPv4 header checksum calculation
   uint16_t sport, dport, bg_sport, bg_dport; // values of source and destination port numbers -- to be preserved, when increase or decrease is done
   uint16_t sp, dp;                           // values of source and destination port numbers -- temporary values
-
- std::cout << "Create BUFFERS" << std::endl;
- std::cout << "Frame size: " << ipv6_frame_size << std::endl;
- std::cout << "Pool size: " << pkt_pool->size  << std::endl;
- std::cout << "Direction: " << direction << std::endl;
- std::cout <<"-----------------------------------------------------" << std::endl;
+  uint16_t tunneled_frame_size = ipv4_frame_size + ipv6_frame_size;
+ 
+  std::cout << "Create BUFFERS" << std::endl;
+  std::cout << "IPv4 Frame size: " << ipv4_frame_size << std::endl;
+  std::cout << "IPv6 Frame size: " << ipv6_frame_size << std::endl;
+  std::cout << "Tunneled Frame size: " << tunneled_frame_size << std::endl;
+  std::cout << "Pool size: " << pkt_pool->size  << std::endl;
+  std::cout << "Direction: " << direction << std::endl;
+  std::cout <<"-----------------------------------------------------" << std::endl;
  // creating buffers of template test frames
  for (i = 0; i < N; i++)
   {
-
     // create a foreground Test Frame
     if (direction == "reverse")
     {
@@ -1249,17 +1254,24 @@ Set port range for bg traffic based on conf file
     }
     else
     { //"forward"
-      fg_pkt_mbuf[i] = mkTestFrame6(ipv6_frame_size, pkt_pool, direction, dst_mac, src_mac, src_ipv6_forw, dst_ipv6_forw, (unsigned)0, (unsigned)0);
+    /*  fg_pkt_mbuf[i] = mkTestFrame6(ipv6_frame_size, pkt_pool, direction, dst_mac, src_mac, src_ipv6_forw, dst_ipv6_forw, (unsigned)0, (unsigned)0);
       pkt = rte_pktmbuf_mtod(fg_pkt_mbuf[i], uint8_t *); // Access the Test Frame in the message buffer
       fg_src_ipv6[i] = (struct in6_addr *)(pkt + 22);    // The source address should be manipulated as it will be the MAP address (i.e. changing each time) in the forward direction
       // The destination address will not be manipulated as it will permenantly be the DMR IPv6 address(as done in the initilization above)
       fg_udp_sport[i] = (uint16_t *)(pkt + 54);
       fg_udp_dport[i] = (uint16_t *)(pkt + 56);
       fg_udp_chksum[i] = (uint16_t *)(pkt + 60);
-      
-      //fg_pkt_mbuf[i] = mkTestIpv4inIpv6Tun(ipv4_frame_size+ipv6_frame_size,pkt_pool,direction,dst_mac,src_mac, src_ipv6_forw, dst_ipv6_forw,var_sport, var_dport, src_ipv4_forw, dst_ipv4_forw);
-      //pkt = rte_pktmbuf_mtod(fg_pkt_mbuf[i], uint8_t *);
-
+    */  
+      fg_pkt_mbuf[i] = mkTestIpv4inIpv6Tun(tunneled_frame_size,pkt_pool,direction,dst_mac,src_mac, src_ipv6_forw, dst_ipv6_forw,0, 0, src_ipv4_forw, dst_ipv4_forw);
+      pkt = rte_pktmbuf_mtod(fg_pkt_mbuf[i], uint8_t *);
+      fg_src_ipv6[i] = (struct in6_addr *)(pkt + 22);    // The source address should be manipulated as it will be the MAP address (i.e. changing each time) in the forward direction
+      // The destination address will not be manipulated as it will permenantly be the DMR IPv6 address(as done in the initilization above)
+      fg_tun_ipv4_chksum[i] = (uint16_t *)(pkt + 64);
+      fg_tun_ipv4_chksum_start = ~*fg_tun_ipv4_chksum[i];
+      fg_src_tun_ipv4[i] = (uint32_t *)(pkt + 66);
+      fg_udp_sport[i] = (uint16_t *)(pkt + 74);
+      fg_udp_dport[i] = (uint16_t *)(pkt + 76);
+      fg_udp_chksum[i] = (uint16_t *)(pkt + 80);
     }
     fg_udp_chksum_start = ~*fg_udp_chksum[i]; // save the uncomplemented UDP checksum value (same for all values of "i")
 
@@ -1282,7 +1294,11 @@ Set port range for bg traffic based on conf file
   // save the uncomplemented IPv4 header checksum (same for all values of [i]). So, [0] is enough
   if (direction == "reverse") // in case of foreground IPv4 only
       fg_ipv4_chksum_start = ~*fg_ipv4_chksum[0]; 
-
+  
+  if (direction == "forward")
+      fg_tun_ipv4_chksum_start = ~*fg_tun_ipv4_chksum[0]; 
+  
+  
   i = 0; // increase maunally after each sending
   current_lwB4 = 0; // increase maunally after each sending
 
@@ -1311,7 +1327,21 @@ Set port range for bg traffic based on conf file
 
       if (direction == "forward")
       {
+        //Set the IPv4 packet fields, IP addresses, checksum
+        ip_chksum = fg_tun_ipv4_chksum_start; // restore the uncomplemented IPv4 header checksum to add the checksum value of the destination IPv4 address
+        *fg_src_tun_ipv4[i] = lwB4_array[current_lwB4].ipv4_addr; //set it with the CE's IPv4 address
+        chksum += lwB4_array[current_lwB4].ipv4_addr_chksum; //add its chechsum to the UDP checksum
+        ip_chksum += lwB4_array[current_lwB4].ipv4_addr_chksum; //and to the IPv4 header checksum
 
+        ip_chksum = ((ip_chksum & 0xffff0000) >> 16) + (ip_chksum & 0xffff); // calculate 16-bit one's complement sum
+        ip_chksum = ((ip_chksum & 0xffff0000) >> 16) + (ip_chksum & 0xffff); // calculate 16-bit one's complement sum
+        ip_chksum = (~ip_chksum) & 0xffff;                                   // make one's complement
+        if (ip_chksum == 0)                                                  // checksum should not be 0 (0 means, no checksum is used)
+          ip_chksum = 0xffff;
+        *fg_tun_ipv4_chksum[i] = (uint16_t)ip_chksum; //now set the IPv4 header checksum of the packet
+        
+        
+        //
         *fg_src_ipv6[i] = lwB4_array[current_lwB4].b4_ipv6_addr; // set it with the map address
         //chksum += lwB4_array[current_lwB4].map_addr_chksum;  // and add its checksum to the UDP checksum
 
@@ -1393,13 +1423,14 @@ Set port range for bg traffic based on conf file
     chksum = ((chksum & 0xffff0000) >> 16) + (chksum & 0xffff); // calculate 16-bit one's complement sum
     chksum = (~chksum) & 0xffff;                                // make one's complement
    
-    if (direction == "reverse")
-      {
+    //if (direction == "reverse")
+    //  {
         if (chksum == 0)                                        // checksum should not be 0 (0 means, no checksum is used)
           chksum = 0xffff;
-      }
+          std::cout << "--------------CHECKSUM NULLA---------" << std::endl;
+      //}
     *udp_chksum = (uint16_t)chksum; // set the UDP checksum in the frame
-
+    std::cout << "UDP CHECKSUM " << udp_chksum << std::endl;
     // finally, send the frame
     while (rte_rdtsc() < start_tsc + sent_frames * hz / frame_rate)
       ; // Beware: an "empty" loop, as well as in the next line
@@ -1454,7 +1485,6 @@ int receive(void *par)
     frames = rte_eth_rx_burst(eth_id, 0, pkt_mbufs, MAX_PKT_BURST);
     for (i = 0; i < frames; i++)
     {
-      received++;
       uint8_t *pkt = rte_pktmbuf_mtod(pkt_mbufs[i], uint8_t *); // Access the Test Frame in the message buffer
       // check EtherType at offset 12: IPv6, IPv4, or anything else
       if (*(uint16_t *)&pkt[12] == ipv6)
