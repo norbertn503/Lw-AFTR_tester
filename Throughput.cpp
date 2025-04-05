@@ -697,8 +697,8 @@ int Throughput::init(const char *argv0, uint16_t leftport, uint16_t rightport)
   thread_local std::mt19937 gen {rd()};
   std::ranges::shuffle(tmp_lwb4data, gen);
   
-  //rte_eth_dev_socket_id(LEFTPORT) ide kéne a tömböt foglalni
-  lwB4_array = (lwB4_data *)rte_malloc("CEs data memory", number_of_lwB4s * sizeof(lwB4_data), 0); 
+  //alloc memory in the numa node what LEFTPORT using
+  lwB4_array = (lwB4_data *)rte_malloc_socket("CEs data memory", number_of_lwB4s * sizeof(lwB4_data), 0, rte_eth_dev_socket_id(LEFTPORT)); 
     
   if (!lwB4_array){
     std::cerr <<  "malloc failure!! Can not create memory for lwB4 data" << std::endl;
@@ -1475,23 +1475,25 @@ int receive(void *par)
 
   while (rte_rdtsc() < finish_receiving)
   {
+    
     frames = rte_eth_rx_burst(eth_id, 0, pkt_mbufs, MAX_PKT_BURST);
+
     for (i = 0; i < frames; i++)
-    {
+    { 
       uint8_t *pkt = rte_pktmbuf_mtod(pkt_mbufs[i], uint8_t *); // Access the Test Frame in the message buffer
+
       // check EtherType at offset 12: IPv6, IPv4, or anything else
-      if (*(uint16_t *)&pkt[12] == ipv6)
-      { /* IPv6 */
-        received++;
+      //if (*(uint16_t *)&pkt[12] == ipv6)
+      //{ /* IPv6 */
+      //  received++;
         /* check if IPv6 Next Header is UDP, and the first 8 bytes of UDP data is 'IDENTIFY' */
-        if (likely(pkt[20] == 17 && *(uint64_t *)&pkt[62] == *id))
-          received++;
-      }
+      //  if (likely(pkt[20] == 17 && *(uint64_t *)&pkt[62] == *id))
+      //    received++;
+      //}
       if (*(uint16_t *)&pkt[12] == ipv6)
       { /* IPv4 in IPv6 */
-        received++;
         /* check if IPv6 Next Header is IPIP, and the first 8 bytes of UDP data is 'IDENTIFY' */
-        if (likely(pkt[20] == 4 && *(uint64_t *)&pkt[22] == *id))
+        if (likely(pkt[20] == 4 && *(uint64_t *)&pkt[82] == *id))
           received++;
       }
       else if (*(uint16_t *)&pkt[12] == ipv4)
