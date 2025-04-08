@@ -127,7 +127,7 @@ void numaCheck(uint16_t port, const char *port_side, int cpu, const char *cpu_na
 struct rte_mbuf *mkTestFrame6(uint16_t length, rte_mempool *pkt_pool, const char *direction,
                               const struct ether_addr *dst_mac, const struct rte_ether_addr *src_mac,
                               struct in6_addr *src_ip, struct in6_addr *dst_ip, unsigned var_sport, unsigned var_dport);
-void mkIpv6Header(struct rte_ipv6_hdr *ip, uint16_t length, struct in6_addr *src_ip, struct in6_addr *dst_ip);
+void mkIpv6Header(struct rte_ipv6_hdr *ip, uint16_t length, struct in6_addr *src_ip, struct in6_addr *dst_ip, uint8_t proto);
 struct rte_mbuf *mkIpv4inIpv6Tun(uint16_t length, rte_mempool *pkt_pool, const char *direction,
                               const struct ether_addr *dst_mac, const struct ether_addr *src_mac,
                               struct in6_addr *src_ipv6, struct in6_addr *dst_ipv6, unsigned var_sport, unsigned var_dport,

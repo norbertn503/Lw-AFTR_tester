@@ -493,12 +493,12 @@ int Throughput::init(const char *argv0, uint16_t leftport, uint16_t rightport)
   if (forward && reverse)
   {
     // both directions are active
-    snprintf(coresList, 101, "0,%d,%d,%d,%d", cpu_fw_send, cpu_rv_receive,  cpu_rv_send, cpu_fw_receive);
+    snprintf(coresList, 101, "0,%d,%d,%d,%d", cpu_fw_send, cpu_fw_receive,  cpu_rv_send, cpu_rv_receive);
   }
   else if (forward)
-    snprintf(coresList, 101, "0,%d,%d", cpu_fw_send, cpu_rv_receive); // only forward (left to right) is active
+    snprintf(coresList, 101, "0,%d,%d", cpu_fw_send, cpu_fw_receive); // only forward (left to right) is active
   else
-    snprintf(coresList, 101, "0,%d,%d",  cpu_rv_send, cpu_fw_receive); // only reverse (right to left) is active
+    snprintf(coresList, 101, "0,%d,%d",  cpu_rv_send, cpu_rv_receive); // only reverse (right to left) is active
 
   rte_argv[2] = coresList;
   std::cout << coresList << std::endl;
@@ -663,12 +663,12 @@ int Throughput::init(const char *argv0, uint16_t leftport, uint16_t rightport)
       if (forward)
       {
         numaCheck(leftport, "Left", cpu_fw_send, "Left Sender");
-        numaCheck(rightport, "Right", cpu_rv_receive, "Right Receiver");
+        numaCheck(rightport, "Right", cpu_fw_receive, "Right Receiver");
       }
       if (reverse)
       {
         numaCheck(rightport, "Right",  cpu_rv_send, "Right Sender");
-        numaCheck(leftport, "Left", cpu_fw_receive, "Left Receiver");
+        numaCheck(leftport, "Left", cpu_rv_receive, "Left Receiver");
       }
     }
   }
@@ -677,12 +677,12 @@ int Throughput::init(const char *argv0, uint16_t leftport, uint16_t rightport)
   if (forward)
   {
     check_tsc(cpu_fw_send, "Left Sender");
-    check_tsc(cpu_rv_receive, "Right Receiver");
+    check_tsc(cpu_fw_receive, "Right Receiver");
   }
   if (reverse)
   {
     check_tsc( cpu_rv_send, "Right Sender");
-    check_tsc(cpu_fw_receive, "Left Receiver");
+    check_tsc(cpu_rv_receive, "Left Receiver");
   }
 
   // prepare further values for testing
@@ -1168,12 +1168,12 @@ int send(void *par)
   
   uint16_t bg_sport_min, bg_sport_max, bg_dport_min, bg_dport_max; // worker port range variables
   
-// set the relevant ranges to the wide range prespecified in the configuration file (usually comply with RFC 4814)
-// the other ranges that are not set now. They will be set in the sending loop because they are based on the PSID of the
-//pseudorandomly enumerated CE
-/*
-Set port range for bg traffic based on conf file 
-*/
+  // set the relevant ranges to the wide range prespecified in the configuration file (usually comply with RFC 4814)
+  // the other ranges that are not set now. They will be set in the sending loop because they are based on the PSID of the
+  //pseudorandomly enumerated CE
+  /*
+  Set port range for bg traffic based on conf file 
+  */
   if (direction == "reverse")
   {
     bg_sport_min = bg_fw_dport_min;
@@ -1498,7 +1498,6 @@ int receive(void *par)
       }
       else if (*(uint16_t *)&pkt[12] == ipv4)
       { /* IPv4 */
-        received++;
          /* check if IPv4 Next Header is UDP, and the first 8 bytes of UDP data is 'IDENTIFY' */
         if (likely(pkt[23] == 17 && *(uint64_t *)&pkt[42] == *id))
           received++;

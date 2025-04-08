@@ -10,11 +10,11 @@ CC = g++
 SRCS-y := 
 
 ifeq ($(TARGET),tp)
-    SRCS-y := main.cpp Throughput.cpp
+    SRCS-y := main-tp.cpp Throughput.cpp
 endif
 
 ifeq ($(TARGET),lat)
-    SRCS-y := main-lat.cpp Latency.cpp
+    SRCS-y := main-lat.cpp latency.cpp Throughput.cpp
 endif
 
 ifeq ($(TARGET),pdv)
