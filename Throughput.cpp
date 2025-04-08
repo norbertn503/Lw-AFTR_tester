@@ -961,7 +961,7 @@ void Throughput::measure(uint16_t leftport, uint16_t rightport) {
       );
     // set individual parameters for the right sender
     // Initialize the parameter class instance
-    spars2 = senderParameters(&scp2, pkt_pool_right_sender, rightport, "reverse", (ether_addr *)dut_fw_mac, (ether_addr *)tester_fw_mac, bg_fw_sport_min, bg_fw_sport_max,
+    spars2 = senderParameters(&scp2, pkt_pool_right_sender, rightport, "reverse", (ether_addr *)dut_rv_mac, (ether_addr *)tester_rv_mac, bg_fw_sport_min, bg_fw_sport_max,
                           bg_fw_dport_min, bg_fw_dport_max);
     //senderParameters spars(&scp, pkt_pool_right_sender, rightport, "reverse", (rte_ether_addr *)dut_fw_mac, (rte_ether_addr *)tester_fw_mac,
     //                      bg_fw_sport_min, bg_fw_sport_max, bg_fw_dport_min, bg_fw_dport_max);
