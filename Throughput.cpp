@@ -887,7 +887,7 @@ struct rte_mbuf *mkTestFrame6(uint16_t length, rte_mempool *pkt_pool, const char
 
   mkEthHeader(eth_hdr, dst_mac, src_mac, 0x86DD); // contains an IPv6 packet
   int ip_length = length - sizeof(rte_ether_hdr);
-  mkIpv6Header(ip_hdr, ip_length, src_ip, dst_ip, 0x11); //0x04 for UDP
+  mkIpv6Header(ip_hdr, ip_length, src_ip, dst_ip, 0x11); //0x11 for UDP
   int udp_length = ip_length - sizeof(rte_ipv6_hdr); // No IP Options are used
   mkUdpHeader(udp_hd, udp_length, var_sport, var_dport);
   int data_length = udp_length - sizeof(rte_udp_hdr);

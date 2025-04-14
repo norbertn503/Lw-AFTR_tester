@@ -18,15 +18,22 @@ public:
 };
 
 struct rte_mbuf *mkLatencyTestFrame4(uint16_t length, rte_mempool *pkt_pool, const char *direction,
-                             const struct ether_addr *dst_mac, const struct rte_ether_addr *src_mac,
+                             const struct ether_addr *dst_mac, const struct ether_addr *src_mac,
                              const uint32_t *src_ip, uint32_t *dst_ip, unsigned var_sport, unsigned var_dport, uint16_t id);
 
-struct rte_mbuf *mkLatencyIpv4inIpv6Tun(uint16_t length, rte_mempool *pkt_pool, const char *direction,
+struct rte_mbuf *mkLatencyTestFrame6(uint16_t length, rte_mempool *pkt_pool, const char *direction,
+                            const struct ether_addr *dst_mac, const struct ether_addr *src_mac,
+                            struct in6_addr *src_ip, struct in6_addr *dst_ip, unsigned var_sport, unsigned var_dport, uint16_t id);
+
+struct rte_mbuf *mkLatencyTestIpv4inIpv6Tun(uint16_t length, rte_mempool *pkt_pool, const char *direction,
                                 const struct ether_addr *dst_mac, const struct ether_addr *src_mac,
                                 struct in6_addr *src_ipv6, struct in6_addr *dst_ipv6, unsigned var_sport, unsigned var_dport,
                                 const uint32_t *src_ipv4, uint32_t *dst_ipv4, uint16_t id);
 
 void mkLatencyData(uint8_t *data, uint16_t length, uint16_t latency_frame_id);
+
+
+void evaluateLatency(uint16_t num_of_tagged, uint64_t *send_ts, uint64_t *receive_ts, uint64_t hz, int penalty, const char *direction);
 
 
 class senderCommonParametersLatency : public senderCommonParameters
@@ -42,10 +49,6 @@ public:
         );
     senderCommonParametersLatency();
 };
-
-
-
-void evaluateLatency(uint16_t num_of_tagged, uint64_t *send_ts, uint64_t *receive_ts, uint64_t hz, int penalty, const char *direction);
 
 class senderParametersLatency : public senderParameters
 {

@@ -16,7 +16,7 @@ int main(int argc, const char **argv) {
     	return -1;
 	if ( lat.init(argv[0], LEFTPORT, RIGHTPORT) < 0)
 		return -1;
-//	lat.measure(LEFTPORT, RIGHTPORT);
+	lat.measure(LEFTPORT, RIGHTPORT);
 	
 	return 0;
 }
