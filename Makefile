@@ -18,7 +18,7 @@ ifeq ($(TARGET),lat)
 endif
 
 ifeq ($(TARGET),pdv)
-    SRCS-y := main-pdv.cpp PDV.cpp
+    SRCS-y := main-pdv.cpp pdv.cpp Throughput.cpp
 endif
 
 
