@@ -21,8 +21,11 @@ struct rte_mbuf *mkPDVTestFrame4(uint16_t length, rte_mempool *pkt_pool, const c
 {
   // printf("inside mkTestFrame4: the beginning\n");
   struct rte_mbuf *pkt_mbuf = rte_pktmbuf_alloc(pkt_pool); // message buffer for the Test Frame
-  if (!pkt_mbuf)
-  rte_exit(EXIT_FAILURE, "Error: %s sender can't allocate a new mbuf for the Test Frame! \n", direction);
+  if (!pkt_mbuf){
+    //rte_exit(EXIT_FAILURE, "Error: %s sender can't allocate a new mbuf for the Test Frame! \n", direction);
+    std::cerr << "Error: %s sender can't allocate a new mbuf for the Test Frame!" << std::endl;
+    return -1;
+  }
   length -= RTE_ETHER_CRC_LEN;                                                                                       // exclude CRC from the frame length
   pkt_mbuf->pkt_len = pkt_mbuf->data_len = length;                                                               // set the length in both places
   uint8_t *pkt = rte_pktmbuf_mtod(pkt_mbuf, uint8_t *);                                                          // Access the Test Frame in the message buffer
@@ -48,8 +51,11 @@ struct rte_mbuf *mkPDVTestFrame6(uint16_t length, rte_mempool *pkt_pool, const c
   struct in6_addr *src_ip, struct in6_addr *dst_ip, unsigned var_sport, unsigned var_dport)
 {
   struct rte_mbuf *pkt_mbuf = rte_pktmbuf_alloc(pkt_pool); // message buffer for the Test Frame
-  if (!pkt_mbuf)
-  rte_exit(EXIT_FAILURE, "Error: %s sender can't allocate a new mbuf for the Test Frame! \n", direction);
+  if (!pkt_mbuf){
+    //rte_exit(EXIT_FAILURE, "Error: %s sender can't allocate a new mbuf for the Test Frame! \n", direction);
+    std::cerr << "Error: %s sender can't allocate a new mbuf for the Test Frame!" << std::endl;
+    return -1;
+  }
   length -= RTE_ETHER_CRC_LEN;                                                                                       // exclude CRC from the frame length
   pkt_mbuf->pkt_len = pkt_mbuf->data_len = length;                                                               // set the length in both places
   uint8_t *pkt = rte_pktmbuf_mtod(pkt_mbuf, uint8_t *);                                                          // Access the Test Frame in the message buffer
@@ -75,8 +81,11 @@ struct rte_mbuf *mkPDVTestIpv4inIpv6Tun(uint16_t length, rte_mempool *pkt_pool, 
   const uint32_t *src_ipv4, uint32_t *dst_ipv4)
   {
     struct rte_mbuf *pkt_mbuf = rte_pktmbuf_alloc(pkt_pool); // message buffer for the Test Frame
-    if (!pkt_mbuf)
-      rte_exit(EXIT_FAILURE, "Error: %s sender can't allocate a new mbuf for the Test Frame! \n", direction);
+    if (!pkt_mbuf){
+      //rte_exit(EXIT_FAILURE, "Error: %s sender can't allocate a new mbuf for the Test Frame! \n", direction);
+      std::cerr << "Error: %s sender can't allocate a new mbuf for the Test Frame!" << std::endl;
+      return -1;
+    }
     length -= RTE_ETHER_CRC_LEN;
     pkt_mbuf->pkt_len = pkt_mbuf->data_len = length;
     uint8_t *pkt = rte_pktmbuf_mtod(pkt_mbuf, uint8_t *);
@@ -96,7 +105,6 @@ struct rte_mbuf *mkPDVTestIpv4inIpv6Tun(uint16_t length, rte_mempool *pkt_pool, 
     int data_length = udp_length - sizeof(rte_udp_hdr);
     mkPDVData(udp_data, data_length);
     udp_hd->dgram_cksum = rte_ipv4_udptcp_cksum(ipv4_hdr, udp_hd); // UDP checksum is calculated and set
-    //Kell az IPv4-re külön checksumot számolni?
     ipv4_hdr->hdr_checksum = rte_ipv4_cksum(ipv4_hdr); 
     return pkt_mbuf;
   }
@@ -118,7 +126,7 @@ void mkPDVData(uint8_t *data, uint16_t length)
 
 int sendPDV(void *par)
 {
-  std::cout << "Send STARTED on CPU core: " << rte_lcore_id() << " Using NUMA node: " << rte_socket_id() << std::endl;
+  //std::cout << "Send STARTED on CPU core: " << rte_lcore_id() << " Using NUMA node: " << rte_socket_id() << std::endl;
   
   //  collecting input parameters:
   class senderParametersPDV *p = (class senderParametersPDV *)par;
@@ -150,7 +158,6 @@ int sendPDV(void *par)
 
   // parameters which are different for the Left sender and the Right sender
   rte_mempool *pkt_pool = p->pkt_pool;
-  std::cout << p->direction << " direction ÁTADÁSKOR" << std::endl;
   uint8_t eth_id = p->eth_id;
   const char *direction = p->direction;
   struct ether_addr *dst_mac = p->dst_mac;
@@ -248,7 +255,7 @@ int sendPDV(void *par)
     bg_dport_max = bg_fw_dport_max;
   }
   
-  // check whether the CE array is built or not
+  // check whether the lwB4 array is built or not
   if(!lwB4_array){
     std::cerr << "No lwB4 array can be accessed by the sender" << std::endl;
     return -1;
@@ -257,8 +264,11 @@ int sendPDV(void *par)
   //rte_exit(EXIT_FAILURE,"No CE array can be accessed by the %s sender",direction);
   // prepare a NUMA local, cache line aligned array for send timestamps
   uint64_t *snd_ts = (uint64_t *)rte_malloc(0, 8 * frames_to_send, 128);
-  if (!snd_ts)
-    rte_exit(EXIT_FAILURE, "Error: Receiver can't allocate memory for timestamps!\n");
+  if (!snd_ts){
+    //rte_exit(EXIT_FAILURE, "Error: Receiver can't allocate memory for timestamps!\n");
+    std::cerr << "Error: Receiver can't allocate memory for timestamps!" << std::endl;
+    return -1
+  }
   *send_ts = snd_ts; // return the address of the array to the caller function  
   
   // implementation of varying port numbers recommended by RFC 4814 https://tools.ietf.org/html/rfc4814#section-4.5
@@ -295,14 +305,6 @@ int sendPDV(void *par)
   uint64_t *fg_counter[N], *bg_counter[N]; // pointers to the given fields
   uint64_t *counter;                       // working pointer to the counter in the currently manipulated frame
 
-  std::cout << "Create BUFFERS" << std::endl;
-  std::cout << "IPv4 Frame size: " << ipv4_frame_size << std::endl;
-  std::cout << "IPv6 Frame size: " << ipv6_frame_size << std::endl;
-  std::cout << "Tunneled Frame size: " << tunneled_frame_size << std::endl;
-  std::cout << "Pool size: " << pkt_pool->size  << std::endl;
-  std::cout << "Direction: " << direction << std::endl;
-  std::cout <<"-----------------------------------------------------" << std::endl;
- 
   // creating buffers of template test frames
  for (i = 0; i < N; i++)
   {
@@ -323,14 +325,6 @@ int sendPDV(void *par)
     }
     else
     { //"forward"
-    /*  fg_pkt_mbuf[i] = mkTestFrame6(ipv6_frame_size, pkt_pool, direction, dst_mac, src_mac, src_ipv6_forw, dst_ipv6_forw, (unsigned)0, (unsigned)0);
-      pkt = rte_pktmbuf_mtod(fg_pkt_mbuf[i], uint8_t *); // Access the Test Frame in the message buffer
-      fg_src_ipv6[i] = (struct in6_addr *)(pkt + 22);    // The source address should be manipulated as it will be the MAP address (i.e. changing each time) in the forward direction
-      // The destination address will not be manipulated as it will permenantly be the DMR IPv6 address(as done in the initilization above)
-      fg_udp_sport[i] = (uint16_t *)(pkt + 54);
-      fg_udp_dport[i] = (uint16_t *)(pkt + 56);
-      fg_udp_chksum[i] = (uint16_t *)(pkt + 60);
-    */  
       fg_pkt_mbuf[i] = mkPDVTestIpv4inIpv6Tun(tunneled_frame_size,pkt_pool,direction,dst_mac,src_mac, src_ipv6_forw, dst_ipv6_forw,0, 0, src_ipv4_forw, dst_ipv4_forw);
       pkt = rte_pktmbuf_mtod(fg_pkt_mbuf[i], uint8_t *);
       fg_src_ipv6[i] = (struct in6_addr *)(pkt + 22);    // The source address should be manipulated as it will be the MAP address (i.e. changing each time) in the forward direction
@@ -356,7 +350,6 @@ int sendPDV(void *par)
     bg_udp_chksum[i] = (uint16_t *)(pkt + 60);
     bg_counter[i] = (uint64_t *)(pkt + 70);
   }
-  std::cout << "BUFFERS CREATED" << std::endl;
   
   //save the uncomplemented UDP checksum value (same for all values of [i]). So, [0] is enough
   fg_udp_chksum_start = ~*fg_udp_chksum[0]; // for the foreground frames 
@@ -380,7 +373,6 @@ int sendPDV(void *par)
   thread_local std::mt19937_64 gen_dport(rd_dport()); // Standard 64-bit mersenne_twister_engine seeded with rd()
 
   // naive sender version: it is simple and fast
-  std::cout << direction << " IS active before main sending frame" << std::endl;
   for (sent_frames = 0; sent_frames < frames_to_send; sent_frames++)
   { // Main cycle for the number of frames to send
     // set the temporary variables (including several pointers) to handle the right pre-generated Test Frame
@@ -417,13 +409,11 @@ int sendPDV(void *par)
 
         std::uniform_int_distribution<int> uni_dis_sport(lwB4_array[current_lwB4].min_port, lwB4_array[current_lwB4].max_port); // uniform distribution in [sport_min, sport_max]
         sp = uni_dis_sport(gen_sport);
-        std::cout << "FORWARD SOURCE PORT RANDOM: " <<sp <<std::endl;
         *udp_sport = htons(sp); // set the source port 
         chksum += *udp_sport; // and add it to the UDP checksum
 
         std::uniform_int_distribution<int> uni_dis_dport(dport_min, dport_max); // uniform distribution in [sport_min, sport_max]
         sp = uni_dis_dport(gen_sport);
-        std::cout << "FORWARD DESTINATION PORT RANDOM: " <<sp <<std::endl;
         *udp_dport = htons(sp); // set the source port 
         chksum += *udp_dport; // and add it to the UDP checksum
       }
@@ -450,13 +440,11 @@ int sendPDV(void *par)
         dp = uni_dis_dport(gen_dport);
         *udp_dport = htons(dp); // set the destination port 
         chksum += *udp_dport; // and add it to the UDP checksum
-        std::cout << "REVERSE SOURCE PORT RANDOM: " << sp <<std::endl;
 
         std::uniform_int_distribution<int> uni_dis_sport(dport_min, dport_max); // uniform distribution in [sport_min, sport_max]
         sp = uni_dis_sport(gen_sport);
         *udp_sport = htons(sp); // set the source port 
         chksum += *udp_sport; // and add it to the UDP checksum
-        std::cout << "REVERSE DESTINATION PORT RANDOM: " << sp <<std::endl;
       }
     }
     else
@@ -507,11 +495,10 @@ int sendPDV(void *par)
     while (!rte_eth_tx_burst(eth_id, 0, &pkt_mbuf, 1))
       ; // send out the frame
 
+    snd_ts[sent_frames] = rte_rdtsc(); // store timestamp
     current_lwB4 = (current_lwB4 + 1) % num_of_lwB4s; // proceed to the next CE element in the CE array
     i = (i + 1) % N;
   } // this is the end of the sending cycle
-
-  std::cout << "------------------------" << std::endl;
 
   // Now, we check the time
   elapsed_seconds = (double)(rte_rdtsc() - start_tsc) / hz;
@@ -525,7 +512,7 @@ int sendPDV(void *par)
 
 int receivePDV(void *par)
 {
-  std::cout << "Receive STARTED on CPU core: " << rte_lcore_id() << " Using NUMA node: " << rte_socket_id() << std::endl;
+  //std::cout << "Receive STARTED on CPU core: " << rte_lcore_id() << " Using NUMA node: " << rte_socket_id() << std::endl;
   
   // collecting input parameters:
   class receiverParametersPDV *p = (class receiverParametersPDV *)par;
@@ -550,8 +537,11 @@ int receivePDV(void *par)
 
   // prepare a NUMA local, cache line aligned array for reveive timestamps, and fill it with all 0-s
   uint64_t *rec_ts = (uint64_t *)rte_zmalloc(0, 8 * num_frames, 128);
-  if (!rec_ts)
-    rte_exit(EXIT_FAILURE, "Error: Receiver can't allocate memory for timestamps!\n");
+  if (!rec_ts){
+    //rte_exit(EXIT_FAILURE, "Error: Receiver can't allocate memory for timestamps!\n");
+    std::cerr << "Error: Receiver can't allocate memory for timestamps!" << std::endl;
+    return -1;
+  }
   *receive_ts = rec_ts; // return the address of the array to the caller function
 
   while (rte_rdtsc() < finish_receiving)
@@ -564,13 +554,6 @@ int receivePDV(void *par)
       uint8_t *pkt = rte_pktmbuf_mtod(pkt_mbufs[i], uint8_t *); // Access the Test Frame in the message bufferq
 
       // check EtherType at offset 12: IPv6, IPv4, or anything else
-      //if (*(uint16_t *)&pkt[12] == ipv6)
-      //{ /* IPv6 */
-      //  received++;
-        /* check if IPv6 Next Header is UDP, and the first 8 bytes of UDP data is 'IDENTIFY' */
-      //  if (likely(pkt[20] == 17 && *(uint64_t *)&pkt[62] == *id))
-      //    received++;
-      //}
       if (*(uint16_t *)&pkt[12] == ipv6)
       { /* IPv4 in IPv6 */
         /* check if IPv6 Next Header is IPIP, and the first 8 bytes of UDP data is 'IDENTIFY' */
@@ -613,11 +596,8 @@ int receivePDV(void *par)
 
 void PDV::measure(uint16_t leftport, uint16_t rightport)
 {
-  std::cout << "measure runs on CPU core: " << rte_lcore_id() << std::endl;
-  /*senderCommonParameters scp(ipv6_frame_size, ipv4_frame_size, frame_rate, test_duration,
-                            n, m, hz, start_tsc, number_of_lwB4s, lwB4_array, &dut_ipv6_tunnel, &tester_fw_rec_ipv4,
-                            &tester_bg_send_ipv6, &tester_bg_rec_ipv6, fwd_dport_min, fwd_dport_max
-                            );*/
+  //std::cout << "measure runs on CPU core: " << rte_lcore_id() << std::endl;
+
   senderCommonParameters scp,scp2;
   senderParametersPDV spars, spars2;
   receiverParametersPDV rpars, rpars2;
@@ -680,13 +660,11 @@ void PDV::measure(uint16_t leftport, uint16_t rightport)
   // wait until active senders and receivers finish
   if (forward)
   {
-    std::cout << "WAITING FORWARD" << std::endl;
     rte_eal_wait_lcore(cpu_fw_send);
     rte_eal_wait_lcore(cpu_fw_receive);
   }
   if (reverse)
   {
-    std::cout << "WAITING REVERSE" << std::endl;
     rte_eal_wait_lcore(cpu_rv_send);
     rte_eal_wait_lcore(cpu_rv_receive);
   }
@@ -699,7 +677,7 @@ void PDV::measure(uint16_t leftport, uint16_t rightport)
   if (reverse)
     evaluatePDV(test_duration * frame_rate, right_send_ts, left_receive_ts, hz, frame_timeout, penalty, "reverse");
 
-  rte_free(lwB4_array); // release the CEs data memory
+  rte_free(lwB4_array); // release the lwB4 data memory
 
   std::cout << "Info: Test finished." << std::endl;
 }
