@@ -43,12 +43,18 @@ void check_tsc(int cpu, const char *cpu_name) {
   uint64_t tsc_before, tsc_reported, tsc_after;
 
   tsc_before = rte_rdtsc();
-  if ( rte_eal_remote_launch(report_tsc, &tsc_reported, cpu) )
-    rte_exit(EXIT_FAILURE, "Error: could not start TSC checker on core #%i for %s!\n", cpu, cpu_name);
+  if ( rte_eal_remote_launch(report_tsc, &tsc_reported, cpu) ){
+    //rte_exit(EXIT_FAILURE, "Error: could not start TSC checker on core #%i for %s!\n", cpu, cpu_name);
+    std::cerr << "Error: could not start TSC checker on core " << cpu << " for " << cpu_name << "!" << std::endl;
+    return -1;
+  }
   rte_eal_wait_lcore(cpu);
   tsc_after = rte_rdtsc();
-  if ( tsc_reported < tsc_before || tsc_reported > tsc_after )
-    rte_exit(EXIT_FAILURE, "Error: TSC of core #%i for %s is not synchronized with that of the main core!\n", cpu, cpu_name);
+  if ( tsc_reported < tsc_before || tsc_reported > tsc_after ){
+    //rte_exit(EXIT_FAILURE, "Error: TSC of core #%i for %s is not synchronized with that of the main core!\n", cpu, cpu_name);
+    std::cerr << "Error: TSC of core " << cpu << " for " << cpu_name << "is not synchronized with that of the main core!" << std::endl;
+    return -1;
+  };
 }
 
 // finds a 'key' (name of a parameter) in the 'line' string
@@ -361,7 +367,6 @@ int Throughput::readConfigFile(const char *filename) {
 
 // reads the config files for lwB4s, creates lwB4_data object for each lwB4 and stores them in Array/Vector
 int Throughput::readlwB4Data(const char *filename) {
-  std::cout << "REA LWB4 CONFIG FILE" << std::endl;
   FILE *f; 	// file descriptor
   char line[LINELEN+1]; // buffer for reading a line of the input file
   int pos; 	// position in the line after the key (parameter name) was found
@@ -513,7 +518,6 @@ int Throughput::init(const char *argv0, uint16_t leftport, uint16_t rightport)
     std::cerr << "Error: DPDK RTE initialization failed, Tester exits." << std::endl;
     return -1;
   }
-  std::cout << "RTE INIT SIKER" << std::endl;
 
   if (!rte_eth_dev_is_valid_port(leftport))
   {
@@ -709,14 +713,7 @@ int Throughput::init(const char *argv0, uint16_t leftport, uint16_t rightport)
     num_of_port_sets = pow(2.0, tmp_lwb4data.at(i).psid_length);
     num_of_ports = (int)(65536.0 / num_of_port_sets);
 
-    /*
-    std::cout << "PSID: " << tmp_lwb4data.at(i).psid << std::endl;
-    std::cout << "PSID-length: " << tmp_lwb4data.at(i).psid_length << std::endl;
-    std::cout << "NUM OF PORTS: " << num_of_ports << std::endl;
-    */
-
     tmp_lwb4data.at(i).min_port = num_of_ports * tmp_lwb4data.at(i).psid;
-    //std::cout << "MIN PORT: " << tmp_lwb4data.at(i).min_port << std::endl;
 
     if(tmp_lwb4data.at(i).min_port < 1024){
       std::cerr << "System Ports can't be used by lwB4s"  << std::endl;
@@ -727,7 +724,6 @@ int Throughput::init(const char *argv0, uint16_t leftport, uint16_t rightport)
     }
     
     tmp_lwb4data.at(i).max_port = tmp_lwb4data.at(i).min_port + num_of_ports -1; 
-    //std::cout << "MAX PORT: " << tmp_lwb4data.at(i).max_port << std::endl;
 
     if(tmp_lwb4data.at(i).max_port > 65535){
       std::cerr << "Maximum port for lwB4 can't be greater than 65535" << std::endl;
@@ -735,21 +731,8 @@ int Throughput::init(const char *argv0, uint16_t leftport, uint16_t rightport)
     }
     tmp_lwb4data.at(i).ipv4_addr_chksum = rte_raw_cksum(&tmp_lwb4data.at(i).ipv4_addr,4); //calculate the IPv4 header checksum
     
-    //std::cout << "-----------------------------" << std::endl;
     lwB4_array[i] = tmp_lwb4data.at(i);
   }
-  
- /* 
-  std::cout << "---------RANDOM START----------" << std::endl;
-  for(int i = 0; i < number_of_lwB4s; i++){
-    std::cout << "PSID: " << lwB4_array[i].psid << std::endl;
-    std::cout << "PSID-length: " << lwB4_array[i].psid_length << std::endl;
-    std::cout << "MIN PORT: " << lwB4_array[i].min_port << std::endl;
-    std::cout << "MAX PORT: " << lwB4_array[i].max_port << std::endl;
-    std::cout << "-----------------------------" << std::endl;
-  }*/
-
-  std::cout << "INIT lefutott" << std::endl;
   return 0;
 } //end init
 
@@ -772,8 +755,11 @@ struct rte_mbuf *mkTestFrame4(uint16_t length, rte_mempool *pkt_pool, const char
 {
   // printf("inside mkTestFrame4: the beginning\n");
   struct rte_mbuf *pkt_mbuf = rte_pktmbuf_alloc(pkt_pool); // message buffer for the Test Frame
-  if (!pkt_mbuf)
-    rte_exit(EXIT_FAILURE, "Error: %s sender can't allocate a new mbuf for the Test Frame! \n", direction);
+  if (!pkt_mbuf){
+    //rte_exit(EXIT_FAILURE, "Error: %s sender can't allocate a new mbuf for the Test Frame! \n", direction);
+    std::cerr << "Error: " << direction << " sender can't allocate a new mbuf for the Test Frame!" << std::endl;
+    return -1;
+  }
   length -= RTE_ETHER_CRC_LEN;                                                                                       // exclude CRC from the frame length
   pkt_mbuf->pkt_len = pkt_mbuf->data_len = length;                                                               // set the length in both places
   uint8_t *pkt = rte_pktmbuf_mtod(pkt_mbuf, uint8_t *);                                                          // Access the Test Frame in the message buffer
@@ -837,15 +823,18 @@ void mkIpv6Header(struct rte_ipv6_hdr *ip, uint16_t length, struct in6_addr *src
   rte_mov16((uint8_t *)&ip->dst_addr, (uint8_t *)dst_ip);
 }
 
-// creates an IPv6 Test Frame using several helper functions
+// creates the tunneled Test Frame using several helper functions
 struct rte_mbuf *mkTestIpv4inIpv6Tun(uint16_t length, rte_mempool *pkt_pool, const char *direction,
                               const struct ether_addr *dst_mac, const struct ether_addr *src_mac,
                               struct in6_addr *src_ipv6, struct in6_addr *dst_ipv6, unsigned var_sport, unsigned var_dport, 
                               const uint32_t *src_ipv4, uint32_t *dst_ipv4)
 {
   struct rte_mbuf *pkt_mbuf = rte_pktmbuf_alloc(pkt_pool); // message buffer for the Test Frame
-  if (!pkt_mbuf)
-    rte_exit(EXIT_FAILURE, "Error: %s sender can't allocate a new mbuf for the Test Frame! \n", direction);
+  if (!pkt_mbuf){
+    //rte_exit(EXIT_FAILURE, "Error: %s sender can't allocate a new mbuf for the Test Frame! \n", direction);
+    std::cerr << "Error: " << direction << " sender can't allocate a new mbuf for the Test Frame!" << std::endl;
+    return -1;
+  }
   length -= RTE_ETHER_CRC_LEN;
   pkt_mbuf->pkt_len = pkt_mbuf->data_len = length;
   uint8_t *pkt = rte_pktmbuf_mtod(pkt_mbuf, uint8_t *);
@@ -865,7 +854,6 @@ struct rte_mbuf *mkTestIpv4inIpv6Tun(uint16_t length, rte_mempool *pkt_pool, con
   int data_length = udp_length - sizeof(rte_udp_hdr);
   mkData(udp_data, data_length);
   udp_hd->dgram_cksum = rte_ipv4_udptcp_cksum(ipv4_hdr, udp_hd); // UDP checksum is calculated and set
-  //Kell az IPv4-re külön checksumot számolni?
   ipv4_hdr->hdr_checksum = rte_ipv4_cksum(ipv4_hdr); 
   return pkt_mbuf;
 }
@@ -875,8 +863,11 @@ struct rte_mbuf *mkTestFrame6(uint16_t length, rte_mempool *pkt_pool, const char
                               struct in6_addr *src_ip, struct in6_addr *dst_ip, unsigned var_sport, unsigned var_dport)
 {
   struct rte_mbuf *pkt_mbuf = rte_pktmbuf_alloc(pkt_pool); // message buffer for the Test Frame
-  if (!pkt_mbuf)
-    rte_exit(EXIT_FAILURE, "Error: %s sender can't allocate a new mbuf for the Test Frame! \n", direction);
+  if (!pkt_mbuf){
+    //rte_exit(EXIT_FAILURE, "Error: %s sender can't allocate a new mbuf for the Test Frame! \n", direction);
+    std::cerr << "Error: " << direction << " sender can't allocate a new mbuf for the Test Frame!" << std::endl;
+    return -1;
+  }
   length -= RTE_ETHER_CRC_LEN;                                                                                       // exclude CRC from the frame length
   pkt_mbuf->pkt_len = pkt_mbuf->data_len = length;                                                               // set the length in both places
   uint8_t *pkt = rte_pktmbuf_mtod(pkt_mbuf, uint8_t *);                                                          // Access the Test Frame in the message buffer
@@ -918,11 +909,8 @@ int Throughput::senderPoolSize()
 
 // performs throughput (or frame loss rate) measurement
 void Throughput::measure(uint16_t leftport, uint16_t rightport) {
-  std::cout << "measure runs on CPU core: " << rte_lcore_id() << std::endl;
-  /*senderCommonParameters scp(ipv6_frame_size, ipv4_frame_size, frame_rate, test_duration,
-                            n, m, hz, start_tsc, number_of_lwB4s, lwB4_array, &dut_ipv6_tunnel, &tester_fw_rec_ipv4,
-                            &tester_bg_send_ipv6, &tester_bg_rec_ipv6, fwd_dport_min, fwd_dport_max
-                            );*/
+  //std::cout << "measure runs on CPU core: " << rte_lcore_id() << std::endl;
+  
   senderCommonParameters scp,scp2;
   senderParameters spars, spars2;
   receiverParameters rpars, rpars2;
@@ -963,8 +951,6 @@ void Throughput::measure(uint16_t leftport, uint16_t rightport) {
     // Initialize the parameter class instance
     spars2 = senderParameters(&scp2, pkt_pool_right_sender, rightport, "reverse", (ether_addr *)dut_rv_mac, (ether_addr *)tester_rv_mac, bg_fw_sport_min, bg_fw_sport_max,
                           bg_fw_dport_min, bg_fw_dport_max);
-    //senderParameters spars(&scp, pkt_pool_right_sender, rightport, "reverse", (rte_ether_addr *)dut_fw_mac, (rte_ether_addr *)tester_fw_mac,
-    //                      bg_fw_sport_min, bg_fw_sport_max, bg_fw_dport_min, bg_fw_dport_max);
 
     // start right sender
     if (rte_eal_remote_launch(send, &spars2, cpu_rv_send))
@@ -983,13 +969,11 @@ void Throughput::measure(uint16_t leftport, uint16_t rightport) {
   // wait until active senders and receivers finish
   if (forward)
   {
-    std::cout << "FORWARD VÁRAKOZÁS" <<std::endl;
     rte_eal_wait_lcore(cpu_fw_send);
     rte_eal_wait_lcore(cpu_fw_receive);
   }
   if (reverse)
   {
-    std::cout << "REVERSE VÁRAKOZÁS" <<std::endl;
     rte_eal_wait_lcore(cpu_rv_send);
     rte_eal_wait_lcore(cpu_rv_receive);
   }
@@ -1061,7 +1045,7 @@ receiverParameters::receiverParameters(){}
 // sends Test Frames for throughput (or frame loss rate) measurement
 int send(void *par)
 {
-  std::cout << "Send STARTED on CPU core: " << rte_lcore_id() << " Using NUMA node: " << rte_socket_id() << std::endl;
+  //std::cout << "Send STARTED on CPU core: " << rte_lcore_id() << " Using NUMA node: " << rte_socket_id() << std::endl;
   
   //  collecting input parameters:
   class senderParameters *p = (class senderParameters *)par;
@@ -1093,7 +1077,6 @@ int send(void *par)
 
   // parameters which are different for the Left sender and the Right sender
   rte_mempool *pkt_pool = p->pkt_pool;
-  std::cout << p->direction << " direction ÁTADÁSKOR" << std::endl;
   uint8_t eth_id = p->eth_id;
   const char *direction = p->direction;
   struct ether_addr *dst_mac = p->dst_mac;
@@ -1195,8 +1178,6 @@ int send(void *par)
     return -1;
   }
     
-  //rte_exit(EXIT_FAILURE,"No CE array can be accessed by the %s sender",direction);
-    
   
   // implementation of varying port numbers recommended by RFC 4814 https://tools.ietf.org/html/rfc4814#section-4.5
   // RFC 4814 requires pseudorandom port numbers, increasing and decreasing ones are our additional, non-stantard solutions
@@ -1228,14 +1209,6 @@ int send(void *par)
   uint16_t sp, dp;                           // values of source and destination port numbers -- temporary values
   uint16_t tunneled_frame_size = ipv4_frame_size + ipv6_frame_size;
  
-  std::cout << "Create BUFFERS" << std::endl;
-  std::cout << "IPv4 Frame size: " << ipv4_frame_size << std::endl;
-  std::cout << "IPv6 Frame size: " << ipv6_frame_size << std::endl;
-  std::cout << "Tunneled Frame size: " << tunneled_frame_size << std::endl;
-  std::cout << "Pool size: " << pkt_pool->size  << std::endl;
-  std::cout << "Direction: " << direction << std::endl;
-  std::cout <<"-----------------------------------------------------" << std::endl;
- 
   // creating buffers of template test frames
  for (i = 0; i < N; i++)
   {
@@ -1255,14 +1228,6 @@ int send(void *par)
     }
     else
     { //"forward"
-    /*  fg_pkt_mbuf[i] = mkTestFrame6(ipv6_frame_size, pkt_pool, direction, dst_mac, src_mac, src_ipv6_forw, dst_ipv6_forw, (unsigned)0, (unsigned)0);
-      pkt = rte_pktmbuf_mtod(fg_pkt_mbuf[i], uint8_t *); // Access the Test Frame in the message buffer
-      fg_src_ipv6[i] = (struct in6_addr *)(pkt + 22);    // The source address should be manipulated as it will be the MAP address (i.e. changing each time) in the forward direction
-      // The destination address will not be manipulated as it will permenantly be the DMR IPv6 address(as done in the initilization above)
-      fg_udp_sport[i] = (uint16_t *)(pkt + 54);
-      fg_udp_dport[i] = (uint16_t *)(pkt + 56);
-      fg_udp_chksum[i] = (uint16_t *)(pkt + 60);
-    */  
       fg_pkt_mbuf[i] = mkTestIpv4inIpv6Tun(tunneled_frame_size,pkt_pool,direction,dst_mac,src_mac, src_ipv6_forw, dst_ipv6_forw,0, 0, src_ipv4_forw, dst_ipv4_forw);
       pkt = rte_pktmbuf_mtod(fg_pkt_mbuf[i], uint8_t *);
       fg_src_ipv6[i] = (struct in6_addr *)(pkt + 22);    // The source address should be manipulated as it will be the MAP address (i.e. changing each time) in the forward direction
@@ -1286,7 +1251,6 @@ int send(void *par)
     bg_udp_dport[i] = (uint16_t *)(pkt + 56);
     bg_udp_chksum[i] = (uint16_t *)(pkt + 60);
   }
-  std::cout << "BUFFERS CREATED" << std::endl;
   
   //save the uncomplemented UDP checksum value (same for all values of [i]). So, [0] is enough
   fg_udp_chksum_start = ~*fg_udp_chksum[0]; // for the foreground frames 
@@ -1339,20 +1303,16 @@ int send(void *par)
           ip_chksum = 0xffff;
         *fg_tun_ipv4_chksum[i] = (uint16_t)ip_chksum; //now set the IPv4 header checksum of the packet
         
-        
-        //
         *fg_src_ipv6[i] = lwB4_array[current_lwB4].b4_ipv6_addr; // set it with the map address
         //chksum += lwB4_array[current_lwB4].map_addr_chksum;  // and add its checksum to the UDP checksum
 
         std::uniform_int_distribution<int> uni_dis_sport(lwB4_array[current_lwB4].min_port, lwB4_array[current_lwB4].max_port); // uniform distribution in [sport_min, sport_max]
         sp = uni_dis_sport(gen_sport);
-        std::cout << "FORWARD SOURCE PORT RANDOM: " <<sp <<std::endl;
         *udp_sport = htons(sp); // set the source port 
         chksum += *udp_sport; // and add it to the UDP checksum
 
         std::uniform_int_distribution<int> uni_dis_dport(dport_min, dport_max); // uniform distribution in [sport_min, sport_max]
         sp = uni_dis_dport(gen_sport);
-        std::cout << "FORWARD DESTINATION PORT RANDOM: " <<sp <<std::endl;
         *udp_dport = htons(sp); // set the source port 
         chksum += *udp_dport; // and add it to the UDP checksum
       }
@@ -1379,13 +1339,11 @@ int send(void *par)
         dp = uni_dis_dport(gen_dport);
         *udp_dport = htons(dp); // set the destination port 
         chksum += *udp_dport; // and add it to the UDP checksum
-        std::cout << "REVERSE SOURCE PORT RANDOM: " << sp <<std::endl;
 
         std::uniform_int_distribution<int> uni_dis_sport(dport_min, dport_max); // uniform distribution in [sport_min, sport_max]
         sp = uni_dis_sport(gen_sport);
         *udp_sport = htons(sp); // set the source port 
         chksum += *udp_sport; // and add it to the UDP checksum
-        std::cout << "REVERSE DESTINATION PORT RANDOM: " << sp <<std::endl;
       }
     }
     else
@@ -1437,13 +1395,14 @@ int send(void *par)
     i = (i + 1) % N;
   } // this is the end of the sending cycle
 
-  std::cout << "------------------------" << std::endl;
-
   // Now, we check the time
   elapsed_seconds = (double)(rte_rdtsc() - start_tsc) / hz;
   printf("Info: %s sender's sending took %3.10lf seconds.\n", direction, elapsed_seconds);
-  if (elapsed_seconds > test_duration * TOLERANCE)
-    rte_exit(EXIT_FAILURE, "%s sending exceeded the %3.10lf seconds limit, the test is invalid.\n", direction, test_duration * TOLERANCE);
+  if (elapsed_seconds > test_duration * TOLERANCE){
+    //rte_exit(EXIT_FAILURE, "%s sending exceeded the %3.10lf seconds limit, the test is invalid.\n", direction, test_duration * TOLERANCE);
+    std::cout << direction << " sending exceeded the " << test_duration * TOLERANCE << " seconds limit, the test is invalid." << std::endl;
+    return -1;
+  }
   printf("%s frames sent: %lu\n", direction, sent_frames);  
 
   return 0;
@@ -1456,7 +1415,7 @@ int send(void *par)
 // IPv4 Protolcol: 14+9=23, UDP Data for IPv4: 14+20+8=42
 int receive(void *par)
 {
-  std::cout << "Receive STARTED on CPU core: " << rte_lcore_id() << " Using NUMA node: " << rte_socket_id() << std::endl;
+  //std::cout << "Receive STARTED on CPU core: " << rte_lcore_id() << " Using NUMA node: " << rte_socket_id() << std::endl;
   
   // collecting input parameters:
   class receiverParameters *p = (class receiverParameters *)par;
@@ -1483,13 +1442,6 @@ int receive(void *par)
       uint8_t *pkt = rte_pktmbuf_mtod(pkt_mbufs[i], uint8_t *); // Access the Test Frame in the message bufferq
 
       // check EtherType at offset 12: IPv6, IPv4, or anything else
-      //if (*(uint16_t *)&pkt[12] == ipv6)
-      //{ /* IPv6 */
-      //  received++;
-        /* check if IPv6 Next Header is UDP, and the first 8 bytes of UDP data is 'IDENTIFY' */
-      //  if (likely(pkt[20] == 17 && *(uint64_t *)&pkt[62] == *id))
-      //    received++;
-      //}
       if (*(uint16_t *)&pkt[12] == ipv6)
       { /* IPv4 in IPv6 */
         /* check if IPv6 Next Header is IPIP, and the first 8 bytes of UDP data is 'IDENTIFY' */

@@ -38,7 +38,7 @@ int Latency::senderPoolSize()
 
 int sendLatency(void *par)
 {
-  std::cout << "Send STARTED on CPU core: " << rte_lcore_id() << " Using NUMA node: " << rte_socket_id() << std::endl;
+  //std::cout << "Send STARTED on CPU core: " << rte_lcore_id() << " Using NUMA node: " << rte_socket_id() << std::endl;
   
   //  collecting input parameters:
   class senderParametersLatency *p = (class senderParametersLatency *)par;
@@ -179,9 +179,6 @@ int sendLatency(void *par)
     return -1;
   }
     
-  //rte_exit(EXIT_FAILURE,"No CE array can be accessed by the %s sender",direction);
-    
-  
   // implementation of varying port numbers recommended by RFC 4814 https://tools.ietf.org/html/rfc4814#section-4.5
   // RFC 4814 requires pseudorandom port numbers, increasing and decreasing ones are our additional, non-stantard solutions
   // always one of the same N pre-prepared foreground or background frames is updated and sent,
@@ -223,13 +220,6 @@ int sendLatency(void *par)
   
   //IMPORTANT NOTE:
   //In the latency test, there are no lat_fg_udp_chksum_start and lat_bg_udp_chksum_start as there in the throughput test becasue here every frame will have different checksum start due to its ordinal number added to its data field
-  
-  std::cout << "Create BUFFERS" << std::endl;
-  std::cout << "IPv4 Frame size: " << ipv4_frame_size << std::endl;
-  std::cout << "IPv6 Frame size: " << ipv6_frame_size << std::endl;
-  std::cout << "Tunneled Frame size: " << tunneled_frame_size << std::endl;
-  std::cout << "Direction: " << direction << std::endl;
-  std::cout <<"-----------------------------------------------------" << std::endl;
  
   // creating buffers of template test frames
   for (i = 0; i < N; i++)
@@ -250,14 +240,6 @@ int sendLatency(void *par)
     }
     else
     { //"forward"
-      /*  fg_pkt_mbuf[i] = mkTestFrame6(ipv6_frame_size, pkt_pool, direction, dst_mac, src_mac, src_ipv6_forw, dst_ipv6_forw, (unsigned)0, (unsigned)0);
-        pkt = rte_pktmbuf_mtod(fg_pkt_mbuf[i], uint8_t *); // Access the Test Frame in the message buffer
-        fg_src_ipv6[i] = (struct in6_addr *)(pkt + 22);    // The source address should be manipulated as it will be the MAP address (i.e. changing each time) in the forward direction
-        // The destination address will not be manipulated as it will permenantly be the DMR IPv6 address(as done in the initilization above)
-        fg_udp_sport[i] = (uint16_t *)(pkt + 54);
-        fg_udp_dport[i] = (uint16_t *)(pkt + 56);
-        fg_udp_chksum[i] = (uint16_t *)(pkt + 60);
-      */ 
       fg_pkt_mbuf[i] = mkTestIpv4inIpv6Tun(tunneled_frame_size,pkt_pool,direction,dst_mac,src_mac, src_ipv6_forw, dst_ipv6_forw,0, 0, src_ipv4_forw, dst_ipv4_forw);
       pkt = rte_pktmbuf_mtod(fg_pkt_mbuf[i], uint8_t *);
       fg_src_ipv6[i] = (struct in6_addr *)(pkt + 22);    // The source address should be manipulated as it will be the MAP address (i.e. changing each time) in the forward direction
@@ -281,19 +263,14 @@ int sendLatency(void *par)
     bg_udp_dport[i] = (uint16_t *)(pkt + 56);
     bg_udp_chksum[i] = (uint16_t *)(pkt + 60);
   }
-  std::cout << "BUFFERS CREATED" << std::endl;
   
   // create Latency Test Frames (may be foreground frames and background frames as well)
   struct rte_mbuf **latency_frames = new struct rte_mbuf *[num_of_tagged];
   if (!latency_frames){
     return -1;
   }
-    //rte_exit(EXIT_FAILURE, "Error: Tester can't allocate memory for latency frame pointers!\n");
-
 
   uint64_t start_latency_frame = first_tagged_delay * frame_rate; // the ordinal number of the very first latency frame
-  
-  std::cout << "LATENCY BUFFERS STARTED" << std::endl;
 
   for (int i = 0; i < num_of_tagged; i++){
     if ((start_latency_frame + i * frame_rate * latency_test_time / num_of_tagged) % n < m)
@@ -535,13 +512,11 @@ int sendLatency(void *par)
           dp = uni_dis_dport(gen_dport);
           *udp_dport = htons(dp); // set the destination port 
           chksum += *udp_dport; // and add it to the UDP checksum
-          std::cout << "REVERSE SOURCE PORT RANDOM NORMAL: " << sp <<std::endl;
-
+      
           std::uniform_int_distribution<int> uni_dis_sport(dport_min, dport_max); // uniform distribution in [sport_min, sport_max]
           sp = uni_dis_sport(gen_sport);
           *udp_sport = htons(sp); // set the source port 
           chksum += *udp_sport; // and add it to the UDP checksum
-          std::cout << "REVERSE DESTINATION PORT RANDOM NORMAL: " << sp <<std::endl;
         }
       }
       else
@@ -607,13 +582,14 @@ int sendLatency(void *par)
     i = (i + 1) % N;
   } // this is the end of the sending cycle
 
-  std::cout << "------------------------" << std::endl;
-
   // Now, we check the time
   elapsed_seconds = (double)(rte_rdtsc() - start_tsc) / hz;
   printf("Info: %s sender's sending took %3.10lf seconds.\n", direction, elapsed_seconds);
-  if (elapsed_seconds > test_duration * TOLERANCE)
-    rte_exit(EXIT_FAILURE, "%s sending exceeded the %3.10lf seconds limit, the test is invalid.\n", direction, test_duration * TOLERANCE);
+  if (elapsed_seconds > test_duration * TOLERANCE){
+    //rte_exit(EXIT_FAILURE, "%s sending exceeded the %3.10lf seconds limit, the test is invalid.\n", direction, test_duration * TOLERANCE);
+    std::cout << direction << " sending exceeded the " << test_duration * TOLERANCE << " seconds limit, the test is invalid." << std::endl;
+    return -1;
+  }
   printf("%s frames sent: %lu\n", direction, sent_frames);  
 
   return 0;
@@ -621,7 +597,7 @@ int sendLatency(void *par)
 
 int receiveLatency(void *par)
 {
-  std::cout << "Receive STARTED on CPU core: " << rte_lcore_id() << " Using NUMA node: " << rte_socket_id() << std::endl;
+  //std::cout << "Receive STARTED on CPU core: " << rte_lcore_id() << " Using NUMA node: " << rte_socket_id() << std::endl;
   
   // collecting input parameters:
   class receiverParametersLatency *p = (class receiverParametersLatency *)par;
@@ -652,13 +628,6 @@ int receiveLatency(void *par)
       uint8_t *pkt = rte_pktmbuf_mtod(pkt_mbufs[i], uint8_t *); // Access the Test Frame in the message bufferq
 
       // check EtherType at offset 12: IPv6, IPv4, or anything else
-      //if (*(uint16_t *)&pkt[12] == ipv6)
-      //{ /* IPv6 */
-      //  received++;
-        /* check if IPv6 Next Header is UDP, and the first 8 bytes of UDP data is 'IDENTIFY' */
-      //  if (likely(pkt[20] == 17 && *(uint64_t *)&pkt[62] == *id))
-      //    received++;
-      //}
       if (*(uint16_t *)&pkt[12] == ipv6)
       { /* IPv4 in IPv6 */
         /* check if IPv6 Next Header is IPIP, and the first 8 bytes of UDP data is 'IDENTIFY' */
@@ -688,7 +657,8 @@ int receiveLatency(void *par)
           uint64_t timestamp = rte_rdtsc(); // get a timestamp ASAP
           int latency_frame_id = *(uint16_t *)&pkt[50];
           if (latency_frame_id < 0 || latency_frame_id >= num_of_tagged){
-            rte_exit(EXIT_FAILURE, "Error: Latency IPv4 Frame with invalid frame ID was received!\n"); // to avoid segmentation fault
+            //rte_exit(EXIT_FAILURE, "Error: Latency IPv4 Frame with invalid frame ID was received!\n"); // to avoid segmentation fault
+            std::cerr << "Error: Latency IPv4 Frame with invalid frame ID was received!" << std::endl;  
             return -1;
           }
           receive_ts[latency_frame_id] = timestamp;
@@ -705,10 +675,7 @@ int receiveLatency(void *par)
 void Latency::measure(uint16_t leftport, uint16_t rightport)
 {
   std::cout << "measure runs on CPU core: " << rte_lcore_id() << std::endl;
-  /*senderCommonParameters scp(ipv6_frame_size, ipv4_frame_size, frame_rate, test_duration,
-                            n, m, hz, start_tsc, number_of_lwB4s, lwB4_array, &dut_ipv6_tunnel, &tester_fw_rec_ipv4,
-                            &tester_bg_send_ipv6, &tester_bg_rec_ipv6, fwd_dport_min, fwd_dport_max
-                            );*/
+  
   senderCommonParametersLatency scp,scp2;
   senderParametersLatency spars, spars2;
   receiverParametersLatency rpars, rpars2;
@@ -721,8 +688,12 @@ void Latency::measure(uint16_t leftport, uint16_t rightport)
     // create dynamic arrays for timestamps
     left_send_ts = new uint64_t[num_of_tagged];
     right_receive_ts = new uint64_t[num_of_tagged];
-    if (!left_send_ts || !right_receive_ts)
-      rte_exit(EXIT_FAILURE, "Error: Tester can't allocate memory for timestamps!\n");
+    if (!left_send_ts || !right_receive_ts){
+      //rte_exit(EXIT_FAILURE, "Error: Tester can't allocate memory for timestamps!\n");
+      std::cerr << "Error: Tester can't allocate memory for timestamps!" << std::endl;
+      return -1;
+    }
+    
     // fill with 0 (will be used to check, if frame with timestamp was received)
     memset(right_receive_ts, 0, num_of_tagged * sizeof(uint64_t));
 
@@ -750,13 +721,17 @@ void Latency::measure(uint16_t leftport, uint16_t rightport)
 
   if (reverse) 
   {
-    std::cout << "REVERSE FORGALOM VAN" << std::endl;
+    //std::cout << "REVERSE FORGALOM VAN" << std::endl;
     
     // create dynamic arrays for timestamps
     right_send_ts = new uint64_t[num_of_tagged];
     left_receive_ts = new uint64_t[num_of_tagged];
-    if (!right_send_ts || !left_receive_ts)
-      rte_exit(EXIT_FAILURE, "Error: Tester can't allocate memory for timestamps!\n");
+    if (!right_send_ts || !left_receive_ts){
+      //rte_exit(EXIT_FAILURE, "Error: Tester can't allocate memory for timestamps!\n");
+      std::cerr << "Error: Tester can't allocate memory for timestamps!" << std::endl;
+      return -1;
+    }
+
     // fill with 0 (will be used to chek, if frame with timestamp was received)
     memset(left_receive_ts, 0, num_of_tagged * sizeof(uint64_t));
     
@@ -769,8 +744,6 @@ void Latency::measure(uint16_t leftport, uint16_t rightport)
     // Initialize the parameter class instance
     spars2 = senderParametersLatency(&scp2, pkt_pool_right_sender, rightport, "reverse", (ether_addr *)dut_rv_mac, (ether_addr *)tester_rv_mac, bg_fw_sport_min, bg_fw_sport_max,
                           bg_fw_dport_min, bg_fw_dport_max, right_send_ts);
-    //senderParameters spars(&scp, pkt_pool_right_sender, rightport, "reverse", (rte_ether_addr *)dut_fw_mac, (rte_ether_addr *)tester_fw_mac,
-    //                      bg_fw_sport_min, bg_fw_sport_max, bg_fw_dport_min, bg_fw_dport_max);
 
     // start right sender
     if (rte_eal_remote_launch(sendLatency, &spars2, cpu_rv_send))
@@ -816,8 +789,12 @@ void Latency::measure(uint16_t leftport, uint16_t rightport)
 void evaluateLatency(uint16_t num_of_tagged, uint64_t *send_ts, uint64_t *receive_ts, uint64_t hz, int penalty, const char *direction)
 {
   double median_latency, worst_case_latency, *latency = new double[num_of_tagged];
-  if (!latency)
-    rte_exit(EXIT_FAILURE, "Error: Tester can't allocate memory for latency values!\n");
+  if (!latency){
+    //rte_exit(EXIT_FAILURE, "Error: Tester can't allocate memory for latency values!\n");
+    std::cerr << "Error: Tester can't allocate memory for latency values!" << std::endl;
+    return -1;
+  }
+
   for (int i = 0; i < num_of_tagged; i++)
     if (receive_ts[i])
       latency[i] = 1000.0 * (receive_ts[i] - send_ts[i]) / hz; // calculate and exchange into milliseconds
@@ -843,8 +820,11 @@ struct rte_mbuf *mkLatencyTestFrame4(uint16_t length, rte_mempool *pkt_pool, con
     const uint32_t *src_ip, uint32_t *dst_ip, unsigned var_sport, unsigned var_dport, uint16_t id)
 {
     struct rte_mbuf *pkt_mbuf = rte_pktmbuf_alloc(pkt_pool); // message buffer for the Test Frame
-    if (!pkt_mbuf)
-    rte_exit(EXIT_FAILURE, "Error: %s sender can't allocate a new mbuf for the Test Frame! \n", direction);
+    if (!pkt_mbuf){
+      //rte_exit(EXIT_FAILURE, "Error: %s sender can't allocate a new mbuf for the Test Frame! \n", direction);
+      std::cerr << "Error: " << direction << " sender can't allocate a new mbuf for the Test Frame!" << std::endl;
+      return -1;
+    }
     length -= RTE_ETHER_CRC_LEN;                                                                                       // exclude CRC from the frame length
     pkt_mbuf->pkt_len = pkt_mbuf->data_len = length;                                                               // set the length in both places
     uint8_t *pkt = rte_pktmbuf_mtod(pkt_mbuf, uint8_t *);                                                          // Access the Test Frame in the message buffer
@@ -870,8 +850,11 @@ struct rte_mbuf *mkLatencyTestFrame6(uint16_t length, rte_mempool *pkt_pool, con
   struct in6_addr *src_ip, struct in6_addr *dst_ip, unsigned var_sport, unsigned var_dport, uint16_t id)
 {
   struct rte_mbuf *pkt_mbuf = rte_pktmbuf_alloc(pkt_pool); // message buffer for the Test Frame
-  if (!pkt_mbuf)
-    rte_exit(EXIT_FAILURE, "Error: %s sender can't allocate a new mbuf for the Test Frame! \n", direction);
+  if (!pkt_mbuf){
+    //rte_exit(EXIT_FAILURE, "Error: %s sender can't allocate a new mbuf for the Test Frame! \n", direction);
+    std::cerr << "Error: " << direction << " sender can't allocate a new mbuf for the Test Frame!" << std::endl;
+    return -1;
+  }
   length -= RTE_ETHER_CRC_LEN;                                                                                       // exclude CRC from the frame length
   pkt_mbuf->pkt_len = pkt_mbuf->data_len = length;                                                               // set the length in both places
   uint8_t *pkt = rte_pktmbuf_mtod(pkt_mbuf, uint8_t *);                                                          // Access the Test Frame in the message buffer
@@ -897,8 +880,11 @@ struct rte_mbuf *mkLatencyTestIpv4inIpv6Tun(uint16_t length, rte_mempool *pkt_po
     const uint32_t *src_ipv4, uint32_t *dst_ipv4, uint16_t id)
 {
     struct rte_mbuf *pkt_mbuf = rte_pktmbuf_alloc(pkt_pool); // message buffer for the Test Frame
-  if (!pkt_mbuf)
-    rte_exit(EXIT_FAILURE, "Error: %s sender can't allocate a new mbuf for the Test Frame! \n", direction);
+  if (!pkt_mbuf){
+    //rte_exit(EXIT_FAILURE, "Error: %s sender can't allocate a new mbuf for the Test Frame! \n", direction);
+    std::cerr << "Error: " << direction << " sender can't allocate a new mbuf for the Test Frame!" << std::endl;
+    return -1;
+  }
   length -= RTE_ETHER_CRC_LEN;
   pkt_mbuf->pkt_len = pkt_mbuf->data_len = length;
   uint8_t *pkt = rte_pktmbuf_mtod(pkt_mbuf, uint8_t *);

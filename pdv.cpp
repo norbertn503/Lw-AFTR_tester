@@ -503,8 +503,11 @@ int sendPDV(void *par)
   // Now, we check the time
   elapsed_seconds = (double)(rte_rdtsc() - start_tsc) / hz;
   printf("Info: %s sender's sending took %3.10lf seconds.\n", direction, elapsed_seconds);
-  if (elapsed_seconds > test_duration * TOLERANCE)
-    rte_exit(EXIT_FAILURE, "%s sending exceeded the %3.10lf seconds limit, the test is invalid.\n", direction, test_duration * TOLERANCE);
+  if (elapsed_seconds > test_duration * TOLERANCE){
+    //rte_exit(EXIT_FAILURE, "%s sending exceeded the %3.10lf seconds limit, the test is invalid.\n", direction, test_duration * TOLERANCE);
+    std::endl << direction << " sending exceeded the " << test_duration * TOLERANCE << " seconds limit, the test is invalid." << std::endl;
+    return -1;
+  }
   printf("%s frames sent: %lu\n", direction, sent_frames);  
 
   return 0;
@@ -711,8 +714,12 @@ void evaluatePDV(uint64_t num_of_frames, uint64_t *send_ts, uint64_t *receive_ts
   uint64_t num_corrected = 0;                    // number of negative delay values corrected to 0
   uint64_t frames_lost = 0;                      // the number of physically lost frames
 
-  if (!latency)
-    rte_exit(EXIT_FAILURE, "Error: Tester can't allocate memory for latency values!\n");
+  if (!latency){
+    //rte_exit(EXIT_FAILURE, "Error: Tester can't allocate memory for latency values!\n");
+    std::cerr << "Error: Tester can't allocate memory for latency values!" << std::endl;
+    return -1;
+  }
+
   for (i = 0; i < num_of_frames; i++)
   {
     if (receive_ts[i])
