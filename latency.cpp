@@ -343,7 +343,6 @@ int sendLatency(void *par)
   thread_local std::mt19937_64 gen_dport(rd_dport()); // Standard 64-bit mersenne_twister_engine seeded with rd()
 
   // naive sender version: it is simple and fast
-  std::cout << direction << " IS active before main sending frame" << std::endl;
   for (sent_frames = 0; sent_frames < frames_to_send; sent_frames++)
   { // Main cycle for the number of frames to send
     // set the temporary variables (including several pointers) to handle the right pre-generated Test Frame
@@ -479,13 +478,11 @@ int sendLatency(void *par)
 
           std::uniform_int_distribution<int> uni_dis_sport(lwB4_array[current_lwB4].min_port, lwB4_array[current_lwB4].max_port); // uniform distribution in [sport_min, sport_max]
           sp = uni_dis_sport(gen_sport);
-          std::cout << "FORWARD SOURCE PORT RANDOM: " <<sp <<std::endl;
           *udp_sport = htons(sp); // set the source port 
           chksum += *udp_sport; // and add it to the UDP checksum
 
           std::uniform_int_distribution<int> uni_dis_dport(dport_min, dport_max); // uniform distribution in [sport_min, sport_max]
           sp = uni_dis_dport(gen_sport);
-          std::cout << "FORWARD DESTINATION PORT RANDOM: " <<sp <<std::endl;
           *udp_dport = htons(sp); // set the source port 
           chksum += *udp_dport; // and add it to the UDP checksum
         }
@@ -689,9 +686,9 @@ void Latency::measure(uint16_t leftport, uint16_t rightport)
     left_send_ts = new uint64_t[num_of_tagged];
     right_receive_ts = new uint64_t[num_of_tagged];
     if (!left_send_ts || !right_receive_ts){
-      //rte_exit(EXIT_FAILURE, "Error: Tester can't allocate memory for timestamps!\n");
-      std::cerr << "Error: Tester can't allocate memory for timestamps!" << std::endl;
-      return -1;
+      rte_exit(EXIT_FAILURE, "Error: Tester can't allocate memory for timestamps!\n");
+      //std::cerr << "Error: Tester can't allocate memory for timestamps!" << std::endl;
+      //return -1;
     }
     
     // fill with 0 (will be used to check, if frame with timestamp was received)
@@ -727,9 +724,9 @@ void Latency::measure(uint16_t leftport, uint16_t rightport)
     right_send_ts = new uint64_t[num_of_tagged];
     left_receive_ts = new uint64_t[num_of_tagged];
     if (!right_send_ts || !left_receive_ts){
-      //rte_exit(EXIT_FAILURE, "Error: Tester can't allocate memory for timestamps!\n");
-      std::cerr << "Error: Tester can't allocate memory for timestamps!" << std::endl;
-      return -1;
+      rte_exit(EXIT_FAILURE, "Error: Tester can't allocate memory for timestamps!\n");
+      //std::cerr << "Error: Tester can't allocate memory for timestamps!" << std::endl;
+      //return -1;
     }
 
     // fill with 0 (will be used to chek, if frame with timestamp was received)
@@ -790,9 +787,9 @@ void evaluateLatency(uint16_t num_of_tagged, uint64_t *send_ts, uint64_t *receiv
 {
   double median_latency, worst_case_latency, *latency = new double[num_of_tagged];
   if (!latency){
-    //rte_exit(EXIT_FAILURE, "Error: Tester can't allocate memory for latency values!\n");
-    std::cerr << "Error: Tester can't allocate memory for latency values!" << std::endl;
-    return -1;
+    rte_exit(EXIT_FAILURE, "Error: Tester can't allocate memory for latency values!\n");
+    //std::cerr << "Error: Tester can't allocate memory for latency values!" << std::endl;
+    //return -1;
   }
 
   for (int i = 0; i < num_of_tagged; i++)
@@ -821,9 +818,9 @@ struct rte_mbuf *mkLatencyTestFrame4(uint16_t length, rte_mempool *pkt_pool, con
 {
     struct rte_mbuf *pkt_mbuf = rte_pktmbuf_alloc(pkt_pool); // message buffer for the Test Frame
     if (!pkt_mbuf){
-      //rte_exit(EXIT_FAILURE, "Error: %s sender can't allocate a new mbuf for the Test Frame! \n", direction);
-      std::cerr << "Error: " << direction << " sender can't allocate a new mbuf for the Test Frame!" << std::endl;
-      return -1;
+      rte_exit(EXIT_FAILURE, "Error: %s sender can't allocate a new mbuf for the Test Frame! \n", direction);
+      //std::cerr << "Error: " << direction << " sender can't allocate a new mbuf for the Test Frame!" << std::endl;
+      //return -1;
     }
     length -= RTE_ETHER_CRC_LEN;                                                                                       // exclude CRC from the frame length
     pkt_mbuf->pkt_len = pkt_mbuf->data_len = length;                                                               // set the length in both places
@@ -851,9 +848,9 @@ struct rte_mbuf *mkLatencyTestFrame6(uint16_t length, rte_mempool *pkt_pool, con
 {
   struct rte_mbuf *pkt_mbuf = rte_pktmbuf_alloc(pkt_pool); // message buffer for the Test Frame
   if (!pkt_mbuf){
-    //rte_exit(EXIT_FAILURE, "Error: %s sender can't allocate a new mbuf for the Test Frame! \n", direction);
-    std::cerr << "Error: " << direction << " sender can't allocate a new mbuf for the Test Frame!" << std::endl;
-    return -1;
+    rte_exit(EXIT_FAILURE, "Error: %s sender can't allocate a new mbuf for the Test Frame! \n", direction);
+    //std::cerr << "Error: " << direction << " sender can't allocate a new mbuf for the Test Frame!" << std::endl;
+    //return -1;
   }
   length -= RTE_ETHER_CRC_LEN;                                                                                       // exclude CRC from the frame length
   pkt_mbuf->pkt_len = pkt_mbuf->data_len = length;                                                               // set the length in both places
@@ -881,9 +878,9 @@ struct rte_mbuf *mkLatencyTestIpv4inIpv6Tun(uint16_t length, rte_mempool *pkt_po
 {
     struct rte_mbuf *pkt_mbuf = rte_pktmbuf_alloc(pkt_pool); // message buffer for the Test Frame
   if (!pkt_mbuf){
-    //rte_exit(EXIT_FAILURE, "Error: %s sender can't allocate a new mbuf for the Test Frame! \n", direction);
-    std::cerr << "Error: " << direction << " sender can't allocate a new mbuf for the Test Frame!" << std::endl;
-    return -1;
+    rte_exit(EXIT_FAILURE, "Error: %s sender can't allocate a new mbuf for the Test Frame! \n", direction);
+    //std::cerr << "Error: " << direction << " sender can't allocate a new mbuf for the Test Frame!" << std::endl;
+    //return -1;
   }
   length -= RTE_ETHER_CRC_LEN;
   pkt_mbuf->pkt_len = pkt_mbuf->data_len = length;

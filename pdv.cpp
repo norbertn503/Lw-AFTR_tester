@@ -22,9 +22,9 @@ struct rte_mbuf *mkPDVTestFrame4(uint16_t length, rte_mempool *pkt_pool, const c
   // printf("inside mkTestFrame4: the beginning\n");
   struct rte_mbuf *pkt_mbuf = rte_pktmbuf_alloc(pkt_pool); // message buffer for the Test Frame
   if (!pkt_mbuf){
-    //rte_exit(EXIT_FAILURE, "Error: %s sender can't allocate a new mbuf for the Test Frame! \n", direction);
-    std::cerr << "Error: %s sender can't allocate a new mbuf for the Test Frame!" << std::endl;
-    return -1;
+    rte_exit(EXIT_FAILURE, "Error: %s sender can't allocate a new mbuf for the Test Frame! \n", direction);
+    //std::cerr << "Error: %s sender can't allocate a new mbuf for the Test Frame!" << std::endl;
+    //return -1;
   }
   length -= RTE_ETHER_CRC_LEN;                                                                                       // exclude CRC from the frame length
   pkt_mbuf->pkt_len = pkt_mbuf->data_len = length;                                                               // set the length in both places
@@ -52,9 +52,9 @@ struct rte_mbuf *mkPDVTestFrame6(uint16_t length, rte_mempool *pkt_pool, const c
 {
   struct rte_mbuf *pkt_mbuf = rte_pktmbuf_alloc(pkt_pool); // message buffer for the Test Frame
   if (!pkt_mbuf){
-    //rte_exit(EXIT_FAILURE, "Error: %s sender can't allocate a new mbuf for the Test Frame! \n", direction);
-    std::cerr << "Error: %s sender can't allocate a new mbuf for the Test Frame!" << std::endl;
-    return -1;
+    rte_exit(EXIT_FAILURE, "Error: %s sender can't allocate a new mbuf for the Test Frame! \n", direction);
+    //std::cerr << "Error: %s sender can't allocate a new mbuf for the Test Frame!" << std::endl;
+    //return -1;
   }
   length -= RTE_ETHER_CRC_LEN;                                                                                       // exclude CRC from the frame length
   pkt_mbuf->pkt_len = pkt_mbuf->data_len = length;                                                               // set the length in both places
@@ -82,9 +82,9 @@ struct rte_mbuf *mkPDVTestIpv4inIpv6Tun(uint16_t length, rte_mempool *pkt_pool, 
   {
     struct rte_mbuf *pkt_mbuf = rte_pktmbuf_alloc(pkt_pool); // message buffer for the Test Frame
     if (!pkt_mbuf){
-      //rte_exit(EXIT_FAILURE, "Error: %s sender can't allocate a new mbuf for the Test Frame! \n", direction);
-      std::cerr << "Error: %s sender can't allocate a new mbuf for the Test Frame!" << std::endl;
-      return -1;
+      rte_exit(EXIT_FAILURE, "Error: %s sender can't allocate a new mbuf for the Test Frame! \n", direction);
+      //std::cerr << "Error: %s sender can't allocate a new mbuf for the Test Frame!" << std::endl;
+      //return -1;
     }
     length -= RTE_ETHER_CRC_LEN;
     pkt_mbuf->pkt_len = pkt_mbuf->data_len = length;
@@ -267,7 +267,7 @@ int sendPDV(void *par)
   if (!snd_ts){
     //rte_exit(EXIT_FAILURE, "Error: Receiver can't allocate memory for timestamps!\n");
     std::cerr << "Error: Receiver can't allocate memory for timestamps!" << std::endl;
-    return -1
+    return -1;
   }
   *send_ts = snd_ts; // return the address of the array to the caller function  
   
@@ -505,7 +505,7 @@ int sendPDV(void *par)
   printf("Info: %s sender's sending took %3.10lf seconds.\n", direction, elapsed_seconds);
   if (elapsed_seconds > test_duration * TOLERANCE){
     //rte_exit(EXIT_FAILURE, "%s sending exceeded the %3.10lf seconds limit, the test is invalid.\n", direction, test_duration * TOLERANCE);
-    std::endl << direction << " sending exceeded the " << test_duration * TOLERANCE << " seconds limit, the test is invalid." << std::endl;
+    std::cout << direction << " sending exceeded the " << test_duration * TOLERANCE << " seconds limit, the test is invalid." << std::endl;
     return -1;
   }
   printf("%s frames sent: %lu\n", direction, sent_frames);  
@@ -715,9 +715,9 @@ void evaluatePDV(uint64_t num_of_frames, uint64_t *send_ts, uint64_t *receive_ts
   uint64_t frames_lost = 0;                      // the number of physically lost frames
 
   if (!latency){
-    //rte_exit(EXIT_FAILURE, "Error: Tester can't allocate memory for latency values!\n");
-    std::cerr << "Error: Tester can't allocate memory for latency values!" << std::endl;
-    return -1;
+    rte_exit(EXIT_FAILURE, "Error: Tester can't allocate memory for latency values!\n");
+    //std::cerr << "Error: Tester can't allocate memory for latency values!" << std::endl;
+    //return -1;
   }
 
   for (i = 0; i < num_of_frames; i++)

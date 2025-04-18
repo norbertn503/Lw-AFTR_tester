@@ -44,16 +44,16 @@ void check_tsc(int cpu, const char *cpu_name) {
 
   tsc_before = rte_rdtsc();
   if ( rte_eal_remote_launch(report_tsc, &tsc_reported, cpu) ){
-    //rte_exit(EXIT_FAILURE, "Error: could not start TSC checker on core #%i for %s!\n", cpu, cpu_name);
-    std::cerr << "Error: could not start TSC checker on core " << cpu << " for " << cpu_name << "!" << std::endl;
-    return -1;
+    rte_exit(EXIT_FAILURE, "Error: could not start TSC checker on core #%i for %s!\n", cpu, cpu_name);
+    //std::cerr << "Error: could not start TSC checker on core " << cpu << " for " << cpu_name << "!" << std::endl;
+    //return -1;
   }
   rte_eal_wait_lcore(cpu);
   tsc_after = rte_rdtsc();
   if ( tsc_reported < tsc_before || tsc_reported > tsc_after ){
-    //rte_exit(EXIT_FAILURE, "Error: TSC of core #%i for %s is not synchronized with that of the main core!\n", cpu, cpu_name);
-    std::cerr << "Error: TSC of core " << cpu << " for " << cpu_name << "is not synchronized with that of the main core!" << std::endl;
-    return -1;
+    rte_exit(EXIT_FAILURE, "Error: TSC of core #%i for %s is not synchronized with that of the main core!\n", cpu, cpu_name);
+    //std::cerr << "Error: TSC of core " << cpu << " for " << cpu_name << "is not synchronized with that of the main core!" << std::endl;
+    //return -1;
   };
 }
 
@@ -756,9 +756,9 @@ struct rte_mbuf *mkTestFrame4(uint16_t length, rte_mempool *pkt_pool, const char
   // printf("inside mkTestFrame4: the beginning\n");
   struct rte_mbuf *pkt_mbuf = rte_pktmbuf_alloc(pkt_pool); // message buffer for the Test Frame
   if (!pkt_mbuf){
-    //rte_exit(EXIT_FAILURE, "Error: %s sender can't allocate a new mbuf for the Test Frame! \n", direction);
-    std::cerr << "Error: " << direction << " sender can't allocate a new mbuf for the Test Frame!" << std::endl;
-    return -1;
+    rte_exit(EXIT_FAILURE, "Error: %s sender can't allocate a new mbuf for the Test Frame! \n", direction);
+    //std::cerr << "Error: " << direction << " sender can't allocate a new mbuf for the Test Frame!" << std::endl;
+    //return -1;
   }
   length -= RTE_ETHER_CRC_LEN;                                                                                       // exclude CRC from the frame length
   pkt_mbuf->pkt_len = pkt_mbuf->data_len = length;                                                               // set the length in both places
@@ -831,9 +831,9 @@ struct rte_mbuf *mkTestIpv4inIpv6Tun(uint16_t length, rte_mempool *pkt_pool, con
 {
   struct rte_mbuf *pkt_mbuf = rte_pktmbuf_alloc(pkt_pool); // message buffer for the Test Frame
   if (!pkt_mbuf){
-    //rte_exit(EXIT_FAILURE, "Error: %s sender can't allocate a new mbuf for the Test Frame! \n", direction);
-    std::cerr << "Error: " << direction << " sender can't allocate a new mbuf for the Test Frame!" << std::endl;
-    return -1;
+    rte_exit(EXIT_FAILURE, "Error: %s sender can't allocate a new mbuf for the Test Frame! \n", direction);
+    //std::cerr << "Error: " << direction << " sender can't allocate a new mbuf for the Test Frame!" << std::endl;
+    //return -1;
   }
   length -= RTE_ETHER_CRC_LEN;
   pkt_mbuf->pkt_len = pkt_mbuf->data_len = length;
@@ -864,9 +864,9 @@ struct rte_mbuf *mkTestFrame6(uint16_t length, rte_mempool *pkt_pool, const char
 {
   struct rte_mbuf *pkt_mbuf = rte_pktmbuf_alloc(pkt_pool); // message buffer for the Test Frame
   if (!pkt_mbuf){
-    //rte_exit(EXIT_FAILURE, "Error: %s sender can't allocate a new mbuf for the Test Frame! \n", direction);
-    std::cerr << "Error: " << direction << " sender can't allocate a new mbuf for the Test Frame!" << std::endl;
-    return -1;
+    rte_exit(EXIT_FAILURE, "Error: %s sender can't allocate a new mbuf for the Test Frame! \n", direction);
+    //std::cerr << "Error: " << direction << " sender can't allocate a new mbuf for the Test Frame!" << std::endl;
+    //return -1;
   }
   length -= RTE_ETHER_CRC_LEN;                                                                                       // exclude CRC from the frame length
   pkt_mbuf->pkt_len = pkt_mbuf->data_len = length;                                                               // set the length in both places
