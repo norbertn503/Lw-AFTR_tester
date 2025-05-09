@@ -1,9 +1,9 @@
 #!/bin/bash
 #Parameters
-impl="MAPTPERF-TP-JOOL-10G-1000_CEs-Fg100-PromiscIs0" # name of the tested implementation (used for logging)
+impl="lw4o6tester-TP-snabb-10G-4_lwB4-Fg100" # name of the tested implementation (used for logging)
 #impl="p096-10G-p096-self" # name of the tested implementation (used for logging)
 dir="b" # valid values: b,f,r; b: bidirectional, f: forward (Left to Right, 6 --> 4), r: reverse (Right to Left, 6 <-- 4) 
-max=10 # maximum packet rate
+max=500000 # maximum packet rate
 fs=84 # IPv6 frame size; IPv4 frame size is always 20 bytes less 
 xpts=60 # duration (in seconds) of an experiment instance
 to=2000 # timeout in milliseconds

@@ -299,7 +299,7 @@ int sendPDV(void *par)
   uint32_t ip_chksum = 0; //temporary variable for IPv4 header checksum calculation
   uint16_t sport, dport, bg_sport, bg_dport; // values of source and destination port numbers -- to be preserved, when increase or decrease is done
   uint16_t sp, dp;                           // values of source and destination port numbers -- temporary values
-  uint16_t tunneled_frame_size = ipv4_frame_size + ipv6_frame_size;
+  uint16_t tunneled_frame_size = ipv6_frame_size + 20;
  
   //for PDV
   uint64_t *fg_counter[N], *bg_counter[N]; // pointers to the given fields
@@ -560,7 +560,7 @@ int receivePDV(void *par)
       if (*(uint16_t *)&pkt[12] == ipv6)
       { /* IPv4 in IPv6 */
         /* check if IPv6 Next Header is IPIP, and the first 8 bytes of UDP data is 'IDENTIFY' */
-        if (likely(pkt[20] == 4 && *(uint64_t *)&pkt[82] == *id))
+        if (likely(pkt[20] == 4 && *(uint64_t *)&pkt[82] == *id)){
           // PDV frame
           timestamp = rte_rdtsc(); // get a timestamp ASAP
           counter = *(uint64_t *)&pkt[90];
@@ -572,6 +572,17 @@ int receivePDV(void *par)
           }
           rec_ts[counter] = timestamp;
           received++; // also count it
+        }else if (likely(pkt[20] == 17 && *(uint64_t *)&pkt[62] == *id))
+        {
+          // PDV frame
+          timestamp = rte_rdtsc(); // get a timestamp ASAP
+          counter = *(uint64_t *)&pkt[70];
+          if (unlikely(counter >= num_frames))
+            //rte_exit(EXIT_FAILURE, "Error: PDV Frame with invalid frame ID was received!\n"); // to avoid segmentation fault
+            std::cout << "Error: IPv4 PDV Frame with invalid frame ID was received!" << std::endl;
+          rec_ts[counter] = timestamp;
+          received++; // also count it
+        }
       }
       else if (*(uint16_t *)&pkt[12] == ipv4)
       { /* IPv4 */
@@ -767,6 +778,8 @@ void evaluatePDV(uint64_t num_of_frames, uint64_t *send_ts, uint64_t *receive_ts
     std::sort(latency, latency + num_of_frames);
     D99_9th_perc = latency[int(ceil(0.999 * num_of_frames)) - 1];
     PDV = D99_9th_perc - Dmin;
+
+    // print the results
     printf("Info: %s D99_9th_perc: %lf\n", direction, 1000.0 * D99_9th_perc / hz);
     printf("Info: %s Dmin: %lf\n", direction, 1000.0 * Dmin / hz);
     printf("Info: %s Dmax: %lf\n", direction, 1000.0 * Dmax / hz);

@@ -1,17 +1,17 @@
 #!/bin/bash
 #Parameters
-impl="lw4o6perf-LAT-JOOL-10G-1000_CEs-Fg100-PromiscIs0" # name of the tested implementation (used for logging)
+impl="lw4o6tester-LAT-snabb-10G-1023_lwB4-Fg100" # name of the tested implementation (used for logging)
 dir="b" # valid values: b,f,r; b: bidirectional, f: forward (Left to Right, 6 --> 4), r: reverse (Right to Left, 6 <-- 4) 
-r=10 # frame rate determined by thropughput measurement
+r=111823 # frame rate determined by thropughput measurement
 fs=84 # IPv6 frame size; IPv4 frame size is always 20 bytes less 
 xpts=120 # duration (in seconds) of an experiment instance
 to=2000 # timeout in milliseconds
 n=2 # foreground traffic, if ( frame_counter % n < m ) 
 m=2 # E.g. n=m=2 is all foreground traffic; n=2,m=0 is all background traffic; n=10,m=9 is 90% fg and 10% bg
 delay=60 # delay before the insertion of the first identifying tag
-tags=100 # number of identifying tags
+tags=500 # number of identifying tags
 sleept=10 # sleeping time between the experiments
-no_exp=2 # number of experiments
+no_exp=10 # number of experiments
 res_dir="results" # base directory for the results (they will be copied there at the end)
 
 ############################
@@ -91,4 +91,4 @@ mkdir -p $dirname
 mv latencytest.log $dirname/
 mv latency.csv $dirname/
 mv nohup.out $dirname/ 
-cp -a maptperf.conf $dirname/
+cp -a lw4o6.conf $dirname/

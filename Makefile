@@ -38,9 +38,9 @@ static: build/$(APP)-static
 
 PC_FILE := $(shell $(PKGCONF) --path libdpdk 2>/dev/null)
 #for performance
-#CFLAGS += -O3 $(shell $(PKGCONF) --cflags libdpdk) 
+CFLAGS += -O3 $(shell $(PKGCONF) --cflags libdpdk) 
 #for debug
-CFLAGS += -g $(shell $(PKGCONF) --cflags libdpdk)
+#CFLAGS += -g $(shell $(PKGCONF) --cflags libdpdk)
 LDFLAGS_SHARED = $(shell $(PKGCONF) --libs libdpdk)
 LDFLAGS_STATIC = $(shell $(PKGCONF) --static --libs libdpdk)
 

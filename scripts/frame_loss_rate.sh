@@ -1,11 +1,11 @@
 #!/bin/bash
 #Parameters
-impl="MAPTPERF-Jool-frameloss-production" # name of the tested implementation (used for logging)
+impl="lw4o6tester-FLR-snabb-10G-1023_lwB4-Fg100" # name of the tested implementation (used for logging)
 dir="b" # valid values: b,f,r; b: bidirectional, f: forward (Left to Right, 6 --> 4), r: reverse (Right to Left, 6 <-- 4) 
-rate_start=200000 # starting from this packet rate
-rate_end=2000000 # ending at this packet rate
-rate_step=200000 # increase of the for cycle: for (( r=rate_start; r <= rate_end; r+=rate_step ))
-fsizes="84 532 1044" # IPv6 frame size; IPv4 frame size is always 20 bytes less 
+rate_start=90000 # starting from this packet rate
+rate_end=200000 # ending at this packet rate
+rate_step=10000 # increase of the for cycle: for (( r=rate_start; r <= rate_end; r+=rate_step ))
+fsizes="84" # IPv6 frame size; IPv4 frame size is always 20 bytes less 
 xpts=60 # duration (in seconds) of an experiment instance
 to=2000 # timeout in milliseconds
 n=2 # foreground traffic, if ( frame_counter % n < m ) 

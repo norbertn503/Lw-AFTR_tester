@@ -38,7 +38,7 @@ int Latency::senderPoolSize()
 
 int sendLatency(void *par)
 {
-  //std::cout << "Send STARTED on CPU core: " << rte_lcore_id() << " Using NUMA node: " << rte_socket_id() << std::endl;
+  std::cout << "Send STARTED on CPU core: " << rte_lcore_id() << " Using NUMA node: " << rte_socket_id() << std::endl;
   
   //  collecting input parameters:
   class senderParametersLatency *p = (class senderParametersLatency *)par;
@@ -207,11 +207,11 @@ int sendLatency(void *par)
   uint32_t ip_chksum = 0; //temporary variable for IPv4 header checksum calculation
   uint16_t sport, dport, bg_sport, bg_dport; // values of source and destination port numbers -- to be preserved, when increase or decrease is done
   uint16_t sp, dp;                           // values of source and destination port numbers -- temporary values
-  uint16_t tunneled_frame_size = ipv4_frame_size + ipv6_frame_size;
- 
+  uint16_t tunneled_frame_size = ipv6_frame_size + 20;
+  //std::cout <<"NUM OF TAGGED: " <<num_of_tagged <<std::endl;
   //same for latency frames
   struct rte_mbuf *lat_fg_pkt_mbuf[num_of_tagged], *lat_bg_pkt_mbuf[num_of_tagged];
-  uint32_t *lat_fg_dst_ipv4[num_of_tagged], *lat_fg_dst_tun_ipv4[N], *lat_fg_src_tun_ipv4[N];
+  uint32_t *lat_fg_dst_ipv4[num_of_tagged], *lat_fg_dst_tun_ipv4[N], *lat_fg_src_tun_ipv4[num_of_tagged];
   struct in6_addr *lat_fg_src_ipv6[num_of_tagged], *lat_fg_dst_ipv6[num_of_tagged];
   struct in6_addr *lat_bg_src_ipv6[num_of_tagged], *lat_bg_dst_ipv6[num_of_tagged];
   uint16_t *lat_fg_udp_sport[num_of_tagged], *lat_fg_udp_dport[num_of_tagged], *lat_fg_udp_chksum[num_of_tagged], *lat_bg_udp_sport[num_of_tagged], *lat_bg_udp_dport[num_of_tagged], *lat_bg_udp_chksum[num_of_tagged]; // pointers to the given fields
@@ -264,6 +264,7 @@ int sendLatency(void *par)
     bg_udp_chksum[i] = (uint16_t *)(pkt + 60);
   }
   
+  //std::cout << "BUFFERS CREATED" << std::endl;
   // create Latency Test Frames (may be foreground frames and background frames as well)
   struct rte_mbuf **latency_frames = new struct rte_mbuf *[num_of_tagged];
   if (!latency_frames){
@@ -311,13 +312,15 @@ int sendLatency(void *par)
       // and they will permenantely be the IP addresses of the left and right interfaces of the Tester 
       // and based on the direction of the test, set previously
       latency_frames[i] = mkLatencyTestFrame6(ipv6_frame_size, pkt_pool, direction, dst_mac, src_mac, src_bg, dst_bg, 0, 0, i);
-      pkt = rte_pktmbuf_mtod(lat_bg_pkt_mbuf[i], uint8_t *); // Access the Test Frame in the message buffer
+      pkt = rte_pktmbuf_mtod(latency_frames[i], uint8_t *); // Access the Test Frame in the message buffer
       lat_bg_udp_sport[i] = (uint16_t *)(pkt + 54);
       lat_bg_udp_dport[i] = (uint16_t *)(pkt + 56);
       lat_bg_udp_chksum[i] = (uint16_t *)(pkt + 60);
     }
   }  
   
+  //std::cout << "LATENCY BUFFERS CREATED" << std::endl;
+
   //save the uncomplemented UDP checksum value (same for all values of [i]). So, [0] is enough
   fg_udp_chksum_start = ~*fg_udp_chksum[0]; // for the foreground frames 
   bg_udp_chksum_start = ~*bg_udp_chksum[0]; // same but for the background frames
@@ -387,6 +390,8 @@ int sendLatency(void *par)
           sp = uni_dis_dport(gen_sport);
           *udp_dport = htons(sp); // set the source port 
           chksum += *udp_dport; // and add it to the UDP checksum
+          
+          //std::cout << "LATENCY FORWARD FRAME" << std::endl;
         }
 
         if (direction == "reverse")
@@ -413,6 +418,8 @@ int sendLatency(void *par)
           sp = uni_dis_sport(gen_sport);
           *udp_sport = htons(sp); // set the source port 
           chksum += *udp_sport; // and add it to the UDP checksum
+
+          //std::cout << "LATENCY REVERSE FRAME" << std::endl;
         }
       }
       else
@@ -485,6 +492,7 @@ int sendLatency(void *par)
           sp = uni_dis_dport(gen_sport);
           *udp_dport = htons(sp); // set the source port 
           chksum += *udp_dport; // and add it to the UDP checksum
+          //std::cout << "FORWARD FRAME" << std::endl;
         }
 
         if (direction == "reverse")
@@ -514,6 +522,8 @@ int sendLatency(void *par)
           sp = uni_dis_sport(gen_sport);
           *udp_sport = htons(sp); // set the source port 
           chksum += *udp_sport; // and add it to the UDP checksum
+
+          //td::cout << "REVERSE FRAME" << std::endl;
         }
       }
       else
@@ -594,7 +604,7 @@ int sendLatency(void *par)
 
 int receiveLatency(void *par)
 {
-  //std::cout << "Receive STARTED on CPU core: " << rte_lcore_id() << " Using NUMA node: " << rte_socket_id() << std::endl;
+  std::cout << "Receive STARTED on CPU core: " << rte_lcore_id() << " Using NUMA node: " << rte_socket_id() << std::endl;
   
   // collecting input parameters:
   class receiverParametersLatency *p = (class receiverParametersLatency *)par;
@@ -636,7 +646,7 @@ int receiveLatency(void *par)
           uint64_t timestamp = rte_rdtsc(); // get a timestamp ASAP
           int latency_frame_id = *(uint16_t *)&pkt[90];
           if (latency_frame_id < 0 || latency_frame_id >= num_of_tagged){
-            std::cout <<"Error: Latency IPv6 Frame with invalid frame ID was received!\n"; // to avoid segmentation fault
+            std::cout <<"Error: Latency IPv4 in IPv6 Frame with invalid frame ID was received!\n"; // to avoid segmentation fault
             return -1;
           }
           receive_ts[latency_frame_id] = timestamp;
@@ -662,6 +672,23 @@ int receiveLatency(void *par)
           received++; // Latency Frame is also counted as Test Frame
         }
       }
+      if (*(uint16_t *)&pkt[12] == ipv6)
+      { /* IPv6 for background*/
+        /* check if IPv6 Next Header is UDP, and the first 8 bytes of UDP data is 'IDENTIFY' */
+        if (likely(pkt[20] == 17 && *(uint64_t *)&pkt[62] == *id))
+          received++; // normal Test Frame
+        else if (pkt[20] == 17 && *(uint64_t *)&pkt[62] == *id_lat) //UDP and 'Identify'
+        {
+          // Latency Frame
+          uint64_t timestamp = rte_rdtsc(); // get a timestamp ASAP
+          int latency_frame_id = *(uint16_t *)&pkt[70];
+          if (latency_frame_id < 0 || latency_frame_id >= num_of_tagged)
+            //rte_exit(EXIT_FAILURE, "Error: Latency Frame with invalid frame ID was received!\n"); // to avoid segmentation fault
+            std::cerr << "Error: Latency Background IPv6 Frame with invalid frame ID was received!" << std::endl;  
+          receive_ts[latency_frame_id] = timestamp;
+          received++; // Latency Frame is also counted as Test Frame
+        }
+      }
       rte_pktmbuf_free(pkt_mbufs[i]);
     }
   }
@@ -671,7 +698,8 @@ int receiveLatency(void *par)
 
 void Latency::measure(uint16_t leftport, uint16_t rightport)
 {
-  std::cout << "measure runs on CPU core: " << rte_lcore_id() << std::endl;
+  
+  //std::cout << "measure runs on CPU core: " << rte_lcore_id() << std::endl;
   
   senderCommonParametersLatency scp,scp2;
   senderParametersLatency spars, spars2;
@@ -915,10 +943,14 @@ void mkLatencyData(uint8_t *data, uint16_t length, uint16_t latency_frame_id)
   data += 8;
   length -= 8;
   *(uint16_t *)data = latency_frame_id;
-  data += 2;
-  length -= 2;
-  for (i = 0; i < length; i++)
-  data[i] = i % 256;
+  //data += 2;
+  data += 1;
+  //length -= 2;
+  length -= 1;
+  
+  for (i = 0; i < length; i++){
+    data[i] = i % 256;
+  }
 }
 
 senderCommonParametersLatency::senderCommonParametersLatency(uint16_t ipv6_frame_size_, uint16_t ipv4_frame_size_, uint32_t frame_rate_, uint16_t test_duration_,

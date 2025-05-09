@@ -127,7 +127,6 @@ int Throughput::readConfigFile(const char *filename) {
     std::cerr << "Input Error: Can't open file '" << filename << "'." << std::endl;
     return -1;
   }
-  std::cout << "READ CONFIG FILE" << std::endl;
   for ( line_no=1; fgets(line, LINELEN+1, f); line_no++ ) {
     if ( (pos = findKey(line, "Tester-BG-Send-IPv6")) >= 0 ) {
       if ( inet_pton(AF_INET6, prune(line+pos), reinterpret_cast<void *>(&tester_bg_send_ipv6)) != 1 ) {
@@ -941,7 +940,6 @@ void Throughput::measure(uint16_t leftport, uint16_t rightport) {
 
   if (reverse) 
   {
-    std::cout << "REVERSE FORGALOM VAN" << std::endl;
     // Right to Left direction is active
     scp2 = senderCommonParameters(ipv6_frame_size, ipv4_frame_size, frame_rate, test_duration,
       n, m, hz, start_tsc, number_of_lwB4s, lwB4_array, &dut_ipv6_tunnel, &tester_fw_rec_ipv4,
@@ -1207,8 +1205,8 @@ int send(void *par)
   uint32_t ip_chksum = 0; //temporary variable for IPv4 header checksum calculation
   uint16_t sport, dport, bg_sport, bg_dport; // values of source and destination port numbers -- to be preserved, when increase or decrease is done
   uint16_t sp, dp;                           // values of source and destination port numbers -- temporary values
-  uint16_t tunneled_frame_size = ipv4_frame_size + ipv6_frame_size;
- 
+  uint16_t tunneled_frame_size =  ipv6_frame_size + 20;
+  
   // creating buffers of template test frames
  for (i = 0; i < N; i++)
   {
@@ -1274,7 +1272,6 @@ int send(void *par)
   thread_local std::mt19937_64 gen_dport(rd_dport()); // Standard 64-bit mersenne_twister_engine seeded with rd()
 
   // naive sender version: it is simple and fast
-  std::cout << direction << " IS active before main sending frame" << std::endl;
   for (sent_frames = 0; sent_frames < frames_to_send; sent_frames++)
   { // Main cycle for the number of frames to send
     // set the temporary variables (including several pointers) to handle the right pre-generated Test Frame
@@ -1312,7 +1309,7 @@ int send(void *par)
         chksum += *udp_sport; // and add it to the UDP checksum
 
         std::uniform_int_distribution<int> uni_dis_dport(dport_min, dport_max); // uniform distribution in [sport_min, sport_max]
-        sp = uni_dis_dport(gen_sport);
+        sp = uni_dis_dport(gen_dport);
         *udp_dport = htons(sp); // set the source port 
         chksum += *udp_dport; // and add it to the UDP checksum
       }
@@ -1443,10 +1440,14 @@ int receive(void *par)
 
       // check EtherType at offset 12: IPv6, IPv4, or anything else
       if (*(uint16_t *)&pkt[12] == ipv6)
-      { /* IPv4 in IPv6 */
-        /* check if IPv6 Next Header is IPIP, and the first 8 bytes of UDP data is 'IDENTIFY' */
-        if (likely(pkt[20] == 4 && *(uint64_t *)&pkt[82] == *id))
+      { /* IPv6 */
+        if (likely(pkt[20] == 4 && *(uint64_t *)&pkt[82] == *id)){
+          /* check if IPv6 Next Header is IPIP, and the first 8 bytes of UDP data is 'IDENTIFY' */
           received++;
+        }else if (likely(pkt[20] == 17 && *(uint64_t *)&pkt[62] == *id)){
+          //IPv6
+          received++;
+        }
       }
       else if (*(uint16_t *)&pkt[12] == ipv4)
       { /* IPv4 */

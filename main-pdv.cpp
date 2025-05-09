@@ -5,8 +5,6 @@
 
 int main(int argc, const char **argv) {
 	
-	std::cout << "MAIN STARTED" << std::endl;
-	
 	PDV pdv;
 	if ( pdv.readConfigFile(CONFIGFILE) < 0 )
     	return -1;

@@ -1,8 +1,8 @@
 #!/bin/bash
 #Parameters
-impl="lw4o6tester-PDV-JOOL-10G-1000_CEs-Fg100-PromiscIs0" # name of the tested implementation (used for logging)
+impl="lw4o6tester-PDV-snabb-10G-1023_lwB4-Fg100" # name of the tested implementation (used for logging)
 dir="b" # valid values: b,f,r; b: bidirectional, f: forward (Left to Right, 6 --> 4), r: reverse (Right to Left, 6 <-- 4) 
-r=901921 # frame pdv determined by thropughput measurement
+r=111823 # frame pdv determined by thropughput measurement
 fs=84 # IPv6 frame size; IPv4 frame size is always 20 bytes less 
 xpts=60 # duration (in seconds) of an experiment instance
 to=2000 # timeout in milliseconds
@@ -83,4 +83,4 @@ mkdir -p $dirname
 mv pdvtest.log $dirname/
 mv pdv.csv $dirname/
 mv nohup.out $dirname/ 
-cp -a maptperf.conf $dirname/
+cp -a lw4o6.conf $dirname/
