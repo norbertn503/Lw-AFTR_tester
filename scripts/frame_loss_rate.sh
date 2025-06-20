@@ -2,7 +2,7 @@
 #Parameters
 impl="lw4o6tester-FLR-snabb-10G-1023_lwB4-Fg100" # name of the tested implementation (used for logging)
 dir="b" # valid values: b,f,r; b: bidirectional, f: forward (Left to Right, 6 --> 4), r: reverse (Right to Left, 6 <-- 4) 
-rate_start=90000 # starting from this packet rate
+rate_start=100000 # starting from this packet rate
 rate_end=200000 # ending at this packet rate
 rate_step=10000 # increase of the for cycle: for (( r=rate_start; r <= rate_end; r+=rate_step ))
 fsizes="84" # IPv6 frame size; IPv4 frame size is always 20 bytes less 
@@ -11,7 +11,7 @@ to=2000 # timeout in milliseconds
 n=2 # foreground traffic, if ( frame_counter % n < m ) 
 m=2 # E.g. n=m=2 is all foreground traffic; n=2,m=0 is all background traffic; n=10,m=9 is 90% fg and 10% bg
 sleept=10 # sleeping time between the experiments
-no_exp=10 # number of experiments
+no_exp=20 # number of experiments
 res_dir="results" # base directory for the results (they will be copied there at the end)
 
 # Cycle for the frame size values

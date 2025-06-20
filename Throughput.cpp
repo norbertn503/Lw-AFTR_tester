@@ -23,10 +23,15 @@ Throughput::Throughput(){
   fwd_dport_max = 49151;         // default value: as recommended by RFC 4814
   rev_sport_min = 1024;          // default value: as recommended by RFC 4814
   rev_sport_max = 65535;         // default value: as recommended by RFC 4814
-  bg_fw_dport_min = 1;              // default value: as recommended by RFC 4814
-  bg_fw_dport_max = 49151;          // default value: as recommended by RFC 4814
-  bg_fw_sport_min = 1024;           // default value: as recommended by RFC 4814
-  bg_fw_sport_max = 65535;          // default value: as recommended by RFC 4814
+  bg_fw_dport_min = 1;           // default value: as recommended by RFC 4814
+  bg_fw_dport_max = 49151;       // default value: as recommended by RFC 4814
+  bg_fw_sport_min = 1024;        // default value: as recommended by RFC 4814
+  bg_fw_sport_max = 65535;       // default value: as recommended by RFC 4814
+  
+  bg_rv_dport_min = 1;           // default value: as recommended by RFC 4814
+  bg_rv_dport_max = 49151;       // default value: as recommended by RFC 4814
+  bg_rv_sport_min = 1024;        // default value: as recommended by RFC 4814
+  bg_rv_sport_max = 65535;       // default value: as recommended by RFC 4814
   //lwB4_array = NULL;
 };
 
@@ -284,6 +289,26 @@ int Throughput::readConfigFile(const char *filename) {
       }
     } else if ( (pos = findKey(line, "bg-FW-sport-max")) >= 0 ) {
       if ( sscanf(line+pos, "%hu", &bg_fw_sport_max) < 1 ) {
+        std::cerr << "Input Error: Unable to read 'bg-RV-sport-max'." << std::endl;
+        return -1;
+      }
+    } else if ( (pos = findKey(line, "bg-RV-dport-min")) >= 0 ) {
+      if ( sscanf(line+pos, "%hu", &bg_rv_dport_min) < 1 ) {
+        std::cerr << "Input Error: Unable to read 'bg-RV-sport-max'." << std::endl;
+        return -1;
+      }
+    } else if ( (pos = findKey(line, "bg-RV-dport-max")) >= 0 ) {
+      if ( sscanf(line+pos, "%hu", &bg_rv_dport_max) < 1 ) {
+        std::cerr << "Input Error: Unable to read 'bg-RV-sport-max'." << std::endl;
+        return -1;
+      }
+    } else if ( (pos = findKey(line, "bg-RV-sport-min")) >= 0 ) {
+      if ( sscanf(line+pos, "%hu", &bg_rv_sport_min) < 1 ) {
+        std::cerr << "Input Error: Unable to read 'bg-RV-sport-max'." << std::endl;
+        return -1;
+      }
+    } else if ( (pos = findKey(line, "bg-RV-sport-max")) >= 0 ) {
+      if ( sscanf(line+pos, "%hu", &bg_rv_sport_max) < 1 ) {
         std::cerr << "Input Error: Unable to read 'bg-RV-sport-max'." << std::endl;
         return -1;
       }
@@ -924,7 +949,7 @@ void Throughput::measure(uint16_t leftport, uint16_t rightport) {
     // Initialize the parameter class instance
 
     spars = senderParameters(&scp, pkt_pool_left_sender, leftport, "forward", (ether_addr *)dut_fw_mac, (ether_addr *)tester_fw_mac, bg_fw_sport_min, bg_fw_sport_max,
-                          bg_fw_dport_min, bg_fw_dport_max);
+                          bg_fw_dport_min, bg_fw_dport_max, bg_rv_sport_min, bg_rv_sport_max, bg_rv_dport_min, bg_rv_dport_max);
 
     // start left sender
     if (rte_eal_remote_launch(send, &spars, cpu_fw_send))
@@ -948,7 +973,7 @@ void Throughput::measure(uint16_t leftport, uint16_t rightport) {
     // set individual parameters for the right sender
     // Initialize the parameter class instance
     spars2 = senderParameters(&scp2, pkt_pool_right_sender, rightport, "reverse", (ether_addr *)dut_rv_mac, (ether_addr *)tester_rv_mac, bg_fw_sport_min, bg_fw_sport_max,
-                          bg_fw_dport_min, bg_fw_dport_max);
+                          bg_fw_dport_min, bg_fw_dport_max, bg_rv_sport_min, bg_rv_sport_max, bg_rv_dport_min, bg_rv_dport_max);
 
     // start right sender
     if (rte_eal_remote_launch(send, &spars2, cpu_rv_send))
@@ -1014,7 +1039,7 @@ senderCommonParameters::senderCommonParameters(){}
 // sets the values of the data fields
 senderParameters::senderParameters(class senderCommonParameters *cp_, rte_mempool *pkt_pool_, uint8_t eth_id_, const char *direction_,
                                   struct ether_addr *dst_mac_, struct ether_addr *src_mac_, uint16_t bg_fw_sport_min_, uint16_t bg_fw_sport_max_, uint16_t bg_fw_dport_min_,
-                                  uint16_t bg_fw_dport_max_
+                                  uint16_t bg_fw_dport_max_, uint16_t bg_rv_sport_min_, uint16_t bg_rv_sport_max_, uint16_t bg_rv_dport_min_, uint16_t bg_rv_dport_max_ 
                                   )
 {
   cp = cp_;
@@ -1027,6 +1052,11 @@ senderParameters::senderParameters(class senderCommonParameters *cp_, rte_mempoo
   bg_fw_sport_max = bg_fw_sport_max_;
   bg_fw_dport_min = bg_fw_dport_min_;
   bg_fw_dport_max = bg_fw_dport_max_;
+
+  bg_rv_sport_min = bg_rv_sport_min_;
+  bg_rv_sport_max = bg_rv_sport_max_;
+  bg_rv_dport_min = bg_rv_dport_min_;
+  bg_rv_dport_max = bg_rv_dport_max_;
 }
 
 senderParameters::senderParameters(){}
@@ -1069,6 +1099,11 @@ int send(void *par)
   uint16_t bg_fw_dport_max = p->bg_fw_dport_max; 
   uint16_t bg_fw_sport_min = p->bg_fw_sport_min; 
   uint16_t bg_fw_sport_max = p->bg_fw_sport_max;
+  
+  uint16_t bg_rv_dport_min = p->bg_rv_dport_min; 
+  uint16_t bg_rv_dport_max = p->bg_rv_dport_max; 
+  uint16_t bg_rv_sport_min = p->bg_rv_sport_min; 
+  uint16_t bg_rv_sport_max = p->bg_rv_sport_max;
 
   uint16_t dport_min = cp->fw_dport_min; 
   uint16_t dport_max = cp->fw_dport_max;
@@ -1157,10 +1192,10 @@ int send(void *par)
   */
   if (direction == "reverse")
   {
-    bg_sport_min = bg_fw_dport_min;
-    bg_sport_max = bg_fw_dport_max;
-    bg_dport_min = bg_fw_sport_min;
-    bg_dport_max = bg_fw_sport_max;
+    bg_sport_min = bg_rv_sport_min;
+    bg_sport_max = bg_rv_sport_max;
+    bg_dport_min = bg_rv_dport_min;
+    bg_dport_max = bg_rv_dport_max;
   }
   else //forward
   {

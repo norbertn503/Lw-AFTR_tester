@@ -651,7 +651,20 @@ int receiveLatency(void *par)
           }
           receive_ts[latency_frame_id] = timestamp;
           received++; // Latency Frame is also counted as Test Frame
-        }
+          }
+        else if(likely(pkt[20] == 17 && *(uint64_t *)&pkt[62] == *id))
+          received++; //bg normal Test Frame
+        else if (pkt[20] == 17 && *(uint64_t *)&pkt[62] == *id_lat) //UDP and 'Identify'
+        {
+          // Latency Frame
+          uint64_t timestamp = rte_rdtsc(); // get a timestamp ASAP
+          int latency_frame_id = *(uint16_t *)&pkt[70];
+          if (latency_frame_id < 0 || latency_frame_id >= num_of_tagged)
+            //rte_exit(EXIT_FAILURE, "Error: Latency Frame with invalid frame ID was received!\n"); // to avoid segmentation fault
+            std::cerr << "Error: Latency Background IPv6 Frame with invalid frame ID was received!" << std::endl;  
+          receive_ts[latency_frame_id] = timestamp;
+          received++; // Latency Frame is also counted as Test Frame
+          }
       }
       else if (*(uint16_t *)&pkt[12] == ipv4)
       { /* IPv4 */
@@ -668,23 +681,6 @@ int receiveLatency(void *par)
             std::cerr << "Error: Latency IPv4 Frame with invalid frame ID was received!" << std::endl;  
             return -1;
           }
-          receive_ts[latency_frame_id] = timestamp;
-          received++; // Latency Frame is also counted as Test Frame
-        }
-      }
-      if (*(uint16_t *)&pkt[12] == ipv6)
-      { /* IPv6 for background*/
-        /* check if IPv6 Next Header is UDP, and the first 8 bytes of UDP data is 'IDENTIFY' */
-        if (likely(pkt[20] == 17 && *(uint64_t *)&pkt[62] == *id))
-          received++; // normal Test Frame
-        else if (pkt[20] == 17 && *(uint64_t *)&pkt[62] == *id_lat) //UDP and 'Identify'
-        {
-          // Latency Frame
-          uint64_t timestamp = rte_rdtsc(); // get a timestamp ASAP
-          int latency_frame_id = *(uint16_t *)&pkt[70];
-          if (latency_frame_id < 0 || latency_frame_id >= num_of_tagged)
-            //rte_exit(EXIT_FAILURE, "Error: Latency Frame with invalid frame ID was received!\n"); // to avoid segmentation fault
-            std::cerr << "Error: Latency Background IPv6 Frame with invalid frame ID was received!" << std::endl;  
           receive_ts[latency_frame_id] = timestamp;
           received++; // Latency Frame is also counted as Test Frame
         }
@@ -819,7 +815,7 @@ void evaluateLatency(uint16_t num_of_tagged, uint64_t *send_ts, uint64_t *receiv
     //std::cerr << "Error: Tester can't allocate memory for latency values!" << std::endl;
     //return -1;
   }
-
+  std::cout << "TAGGED: " << num_of_tagged << std::endl;
   for (int i = 0; i < num_of_tagged; i++)
     if (receive_ts[i])
       latency[i] = 1000.0 * (receive_ts[i] - send_ts[i]) / hz; // calculate and exchange into milliseconds

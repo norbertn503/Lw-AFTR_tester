@@ -1,5 +1,5 @@
 killall lw4o6_tester
-killall frame_loss_rate.sh
+killall throughput.sh
 rm nohup.out
 rm ratetest.log
 rm rate.csv

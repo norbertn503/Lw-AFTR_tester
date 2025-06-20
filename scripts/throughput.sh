@@ -1,17 +1,17 @@
 #!/bin/bash
 #Parameters
-impl="lw4o6tester-TP-snabb-10G-4_lwB4-Fg100" # name of the tested implementation (used for logging)
+impl="lw4o6tester-TP-snabb-10G-1024_lwB4-Fg100" # name of the tested implementation (used for logging)
 #impl="p096-10G-p096-self" # name of the tested implementation (used for logging)
-dir="b" # valid values: b,f,r; b: bidirectional, f: forward (Left to Right, 6 --> 4), r: reverse (Right to Left, 6 <-- 4) 
+dir="r" # valid values: b,f,r; b: bidirectional, f: forward (Left to Right, 6 --> 4), r: reverse (Right to Left, 6 <-- 4) 
 max=500000 # maximum packet rate
-fs=84 # IPv6 frame size; IPv4 frame size is always 20 bytes less 
+fs=84 # IPv6 frame size; IPv4 frame size is always 20 bytes less; Tunneled IPv4inIPv6 frame is 20 byte larger 
 xpts=60 # duration (in seconds) of an experiment instance
 to=2000 # timeout in milliseconds
 n=2 # foreground traffic, if ( frame_counter % n < m ) 
 m=2 # E.g. n=m=2 is all foreground traffic; n=2,m=0 is all background traffic; n=10,m=9 is 90% fg and 10% bg
 sleept=10 # sleeping time between the experiments
 e=1 # measurement error: the difference betwen the values of the higher and the lower bound of the binary search, when finishing
-no_exp=20 # number of experiments
+no_exp=10 # number of experiments
 res_dir="results" # base directory for the results (they will be copied there at the end)
 
 ############################

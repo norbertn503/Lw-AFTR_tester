@@ -2,7 +2,7 @@
 #Parameters
 impl="lw4o6tester-LAT-snabb-10G-1023_lwB4-Fg100" # name of the tested implementation (used for logging)
 dir="b" # valid values: b,f,r; b: bidirectional, f: forward (Left to Right, 6 --> 4), r: reverse (Right to Left, 6 <-- 4) 
-r=111823 # frame rate determined by thropughput measurement
+r=117464 # frame rate determined by thropughput measurement
 fs=84 # IPv6 frame size; IPv4 frame size is always 20 bytes less 
 xpts=120 # duration (in seconds) of an experiment instance
 to=2000 # timeout in milliseconds
@@ -11,7 +11,7 @@ m=2 # E.g. n=m=2 is all foreground traffic; n=2,m=0 is all background traffic; n
 delay=60 # delay before the insertion of the first identifying tag
 tags=500 # number of identifying tags
 sleept=10 # sleeping time between the experiments
-no_exp=10 # number of experiments
+no_exp=20 # number of experiments
 res_dir="results" # base directory for the results (they will be copied there at the end)
 
 ############################
