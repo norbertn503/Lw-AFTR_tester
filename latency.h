@@ -57,7 +57,7 @@ public:
 
     senderParametersLatency(class senderCommonParameters *cp_, rte_mempool *pkt_pool_, uint8_t eth_id_, const char *direction_,
     struct ether_addr *dst_mac_, struct ether_addr *src_mac_, uint16_t bg_fw_sport_min_, uint16_t bg_fw_sport_max_, uint16_t bg_fw_dport_min_,
-    uint16_t bg_fw_dport_max_, uint64_t *send_ts_
+    uint16_t bg_fw_dport_max_, uint16_t bg_rv_sport_min, uint16_t bg_rv_sport_max, uint16_t bg_rv_dport_min, uint16_t bg_rv_dport_max, uint64_t *send_ts_
     );
     senderParametersLatency(); 
 };

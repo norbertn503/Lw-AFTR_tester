@@ -69,6 +69,11 @@ int sendLatency(void *par)
   uint16_t bg_fw_sport_min = p->bg_fw_sport_min; 
   uint16_t bg_fw_sport_max = p->bg_fw_sport_max;
 
+  uint16_t bg_rv_dport_min = p->bg_rv_dport_min; 
+  uint16_t bg_rv_dport_max = p->bg_rv_dport_max; 
+  uint16_t bg_rv_sport_min = p->bg_rv_sport_min; 
+  uint16_t bg_rv_sport_max = p->bg_rv_sport_max;
+
   uint16_t dport_min = cp->fw_dport_min; 
   uint16_t dport_max = cp->fw_dport_max;
 
@@ -160,10 +165,10 @@ int sendLatency(void *par)
   
   if (direction == "reverse")
   {
-    bg_sport_min = bg_fw_dport_min;
-    bg_sport_max = bg_fw_dport_max;
-    bg_dport_min = bg_fw_sport_min;
-    bg_dport_max = bg_fw_sport_max;
+    bg_sport_min = bg_rv_sport_min;
+    bg_sport_max = bg_rv_sport_max;
+    bg_dport_min = bg_rv_dport_min;
+    bg_dport_max = bg_rv_dport_max;
   }
   else //forward
   {
@@ -726,7 +731,7 @@ void Latency::measure(uint16_t leftport, uint16_t rightport)
     // Initialize the parameter class instance
 
     spars = senderParametersLatency(&scp, pkt_pool_left_sender, leftport, "forward", (ether_addr *)dut_fw_mac, (ether_addr *)tester_fw_mac, bg_fw_sport_min, bg_fw_sport_max,
-                          bg_fw_dport_min, bg_fw_dport_max, left_send_ts);
+                          bg_fw_dport_min, bg_fw_dport_max, bg_rv_sport_min, bg_rv_sport_max, bg_rv_dport_min, bg_rv_dport_max, left_send_ts);
 
     // start left sender
     if (rte_eal_remote_launch(sendLatency, &spars, cpu_fw_send))
@@ -764,7 +769,7 @@ void Latency::measure(uint16_t leftport, uint16_t rightport)
     // set individual parameters for the right sender
     // Initialize the parameter class instance
     spars2 = senderParametersLatency(&scp2, pkt_pool_right_sender, rightport, "reverse", (ether_addr *)dut_rv_mac, (ether_addr *)tester_rv_mac, bg_fw_sport_min, bg_fw_sport_max,
-                          bg_fw_dport_min, bg_fw_dport_max, right_send_ts);
+                          bg_fw_dport_min, bg_fw_dport_max, bg_rv_sport_min, bg_rv_sport_max, bg_rv_dport_min, bg_rv_dport_max, right_send_ts);
 
     // start right sender
     if (rte_eal_remote_launch(sendLatency, &spars2, cpu_rv_send))
@@ -966,7 +971,8 @@ senderCommonParametersLatency::senderCommonParametersLatency(uint16_t ipv6_frame
     
 senderParametersLatency::senderParametersLatency(class senderCommonParameters *cp_, rte_mempool *pkt_pool_, uint8_t eth_id_, const char *direction_,
                                                 struct ether_addr *dst_mac_, struct ether_addr *src_mac_, uint16_t bg_fw_sport_min_, uint16_t bg_fw_sport_max_, uint16_t bg_fw_dport_min_,
-                                                uint16_t bg_fw_dport_max_, uint64_t *send_ts_) : senderParameters(cp_, pkt_pool_, eth_id_, direction_, dst_mac_, src_mac_, bg_fw_sport_min_, bg_fw_sport_max_, bg_fw_dport_min_, bg_fw_dport_max_
+                                                uint16_t bg_fw_dport_max_, uint16_t bg_rv_sport_min_, uint16_t bg_rv_sport_max_, uint16_t bg_rv_dport_min_, uint16_t bg_rv_dport_max_, uint64_t *send_ts_) : senderParameters(cp_, pkt_pool_, eth_id_, direction_, dst_mac_, src_mac_, bg_fw_sport_min_, bg_fw_sport_max_, bg_fw_dport_min_, bg_fw_dport_max_,
+                                                bg_rv_sport_min_, bg_rv_sport_max_, bg_rv_dport_min_, bg_rv_dport_max_
     )
     {
         send_ts = send_ts_;
