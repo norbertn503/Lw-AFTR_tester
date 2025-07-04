@@ -450,7 +450,7 @@ int Throughput::readlwB4Data(const char *filename) {
   if (new_lwB4){
     tmp_lwb4data.push_back(tmp_obj);	
   }
-
+  std::cout << "Number of lwB4s read from lwB4Data.conf: " << tmp_lwb4data.size() << std::endl;
   if (tmp_lwb4data.size() != number_of_lwB4s) {
     std::cerr << "Number of lwB4 number is not the same as declared in lw4o6.conf" << std::endl;
     return -1;
@@ -737,8 +737,14 @@ int Throughput::init(const char *argv0, uint16_t leftport, uint16_t rightport)
     num_of_port_sets = pow(2.0, tmp_lwb4data.at(i).psid_length);
     num_of_ports = (int)(65536.0 / num_of_port_sets);
 
-    tmp_lwb4data.at(i).min_port = num_of_ports * tmp_lwb4data.at(i).psid;
+    if (tmp_lwb4data.at(i).psid == 1){
+      tmp_lwb4data.at(i).min_port = 0;
+    }else {
+      tmp_lwb4data.at(i).min_port = num_of_ports * (tmp_lwb4data.at(i).psid -1);
+    }
 
+    
+    std::cout << "MIN PORT: " << tmp_lwb4data.at(i).min_port << std::endl;
     if(tmp_lwb4data.at(i).min_port < 1024){
       std::cerr << "System Ports can't be used by lwB4s"  << std::endl;
       return -1;
