@@ -312,18 +312,7 @@ int Throughput::readConfigFile(const char *filename) {
         std::cerr << "Input Error: Unable to read 'bg-RV-sport-max'." << std::endl;
         return -1;
       }
-    } else if ( (pos = findKey(line, "PSID_length")) >= 0 ) {
-      sscanf(line+pos, "%u", &psid_length);
-      if ( psid_length < 1 || psid_length > 16 ) {
-        std::cerr << "Input Error: 'PSID_length' must be >= 1 and <= 16." << std::endl;
-        return -1;
-      }
-    } else if ( (pos = findKey(line, "PSID")) >= 0 ) {
-      sscanf(line+pos, "%u", &psid); 
-      if ( psid == 0 ) {
-        std::cerr << "Input Error: 'PSID' cannot be 0." << std::endl;
-        return -1;
-      }
+    
     } else if ((pos = findKey(line, "NUM-OF-lwB4s")) >= 0){
       sscanf(line + pos, "%u", &number_of_lwB4s);
       if (number_of_lwB4s < 1 || number_of_lwB4s > 1000000)
@@ -331,26 +320,12 @@ int Throughput::readConfigFile(const char *filename) {
         std::cerr << "Input Error: 'NUM-OF-lwB4s' must be >= 1 and <= 1000000." << std::endl;
         return -1;
       }
-    } else if ( (pos = findKey(line, "DUT-FW-IPv6")) >= 0 ) {
-      if ( inet_pton(AF_INET6, prune(line+pos), reinterpret_cast<void *>(&dut_fw_ipv6)) != 1 ) {
-         std::cerr << "Input Error: Bad 'DUT-FW-IPv6' address." << std::endl;
-        return -1;
-      } 
     } else if ( (pos = findKey(line, "DUT-Tunnel-IPv6")) >= 0 ) {
       if ( inet_pton(AF_INET6, prune(line+pos), reinterpret_cast<void *>(&dut_ipv6_tunnel)) != 1 ) {
          std::cerr << "Input Error: Bad 'DUT-Tunnel-IPv6' address." << std::endl;
         return -1;
-      } 
-    } else if ( (pos = findKey(line, "LWB4-start-IPv4")) >= 0 ) {
-      if ( inet_pton(AF_INET, prune(line+pos), reinterpret_cast<void *>(&lwb4_start_ipv4)) != 1 ) {
-        std::cerr << "Input Error: Bad 'LWB4-start-IPv4' address." << std::endl;
-        return -1;
       }
-    } else if ( (pos = findKey(line, "LWB4-end-IPv4")) >= 0 ) {
-      if ( inet_pton(AF_INET, prune(line+pos), reinterpret_cast<void *>(&lwb4_end_ipv4)) != 1 ) {
-        std::cerr << "Input Error: Bad 'LWB4-end-IPv4' address." << std::endl;
-        return -1;
-      }
+    
     } else if ( nonComment(line) ) { // It may be too strict!
         std::cerr << "Input Error: Cannot interpret '" << filename << "' line " << line_no << ":" << std::endl;
         std::cerr << line << std::endl;
@@ -438,8 +413,8 @@ int Throughput::readlwB4Data(const char *filename) {
         }
       } else if ( (pos = findKey(line, "psid")) >= 0 ) {
         sscanf(line+pos, "%u", &tmp_obj.psid);
-        if ( tmp_obj.psid <= 0 ) {
-          std::cerr << "Input Error: 'psid' cannot be 0 or negative." << std::endl;
+        if ( tmp_obj.psid < 0 ) {
+          std::cerr << "ERROR: PSID cannot be negative" << std::endl;
           return -1;
         }
       }
@@ -732,28 +707,25 @@ int Throughput::init(const char *argv0, uint16_t leftport, uint16_t rightport)
     std::cerr <<  "malloc failure!! Can not create memory for lwB4 data" << std::endl;
     return -1;
   }
-
+  
   for(int i = 0; i < tmp_lwb4data.size(); i++){
     num_of_port_sets = pow(2.0, tmp_lwb4data.at(i).psid_length);
     num_of_ports = (int)(65536.0 / num_of_port_sets);
 
-    if (tmp_lwb4data.at(i).psid == 1){
+    if (tmp_lwb4data.at(i).psid == 0){
       tmp_lwb4data.at(i).min_port = 0;
     }else {
       tmp_lwb4data.at(i).min_port = num_of_ports * (tmp_lwb4data.at(i).psid -1);
     }
 
-    
-    std::cout << "MIN PORT: " << tmp_lwb4data.at(i).min_port << std::endl;
     if(tmp_lwb4data.at(i).min_port < 1024){
-      std::cerr << "System Ports can't be used by lwB4s"  << std::endl;
-      return -1;
+      std::cout << "Warning: System Ports SHOULD NOT be allocated to lwB4s"  << std::endl;
     } else if(tmp_lwb4data.at(i).min_port > 65535){
       std::cerr << "Minimum port for lwB4 can't be greater than 65535"  << std::endl;
       return -1;
     }
     
-    tmp_lwb4data.at(i).max_port = tmp_lwb4data.at(i).min_port + num_of_ports -1; 
+    tmp_lwb4data.at(i).max_port = tmp_lwb4data.at(i).min_port + num_of_ports -1;
 
     if(tmp_lwb4data.at(i).max_port > 65535){
       std::cerr << "Maximum port for lwB4 can't be greater than 65535" << std::endl;
@@ -1261,7 +1233,7 @@ int send(void *par)
       fg_ipv4_chksum_start = ~*fg_ipv4_chksum[i]; // save the uncomplementd checksum calculated by the rte_ipv4_cksum() in mkTestFrame4(). It is same for all (i)
       fg_dst_ipv4[i] = (uint32_t *)(pkt + 30); // The destination ipv4 should be manipulated in the sending loop as it will come from lwB4 data (i.e. changing each time) in the reverse direction
       // The source address will not be manipulated as it will permentantly be the IP address of the right interface of the Tester (as done in the initilization above)
-      fg_udp_sport[i] = (uint16_t *)(pkt + 34); //?? Can it be constant
+      fg_udp_sport[i] = (uint16_t *)(pkt + 34);
       fg_udp_dport[i] = (uint16_t *)(pkt + 36); // Need to change based on lwB4 data
       fg_udp_chksum[i] = (uint16_t *)(pkt + 40);
     }
@@ -1269,8 +1241,7 @@ int send(void *par)
     { //"forward"
       fg_pkt_mbuf[i] = mkTestIpv4inIpv6Tun(tunneled_frame_size,pkt_pool,direction,dst_mac,src_mac, src_ipv6_forw, dst_ipv6_forw,0, 0, src_ipv4_forw, dst_ipv4_forw);
       pkt = rte_pktmbuf_mtod(fg_pkt_mbuf[i], uint8_t *);
-      fg_src_ipv6[i] = (struct in6_addr *)(pkt + 22);    // The source address should be manipulated as it will be the MAP address (i.e. changing each time) in the forward direction
-      // The destination address will not be manipulated as it will permenantly be the DMR IPv6 address(as done in the initilization above)
+      fg_src_ipv6[i] = (struct in6_addr *)(pkt + 22);
       fg_tun_ipv4_chksum[i] = (uint16_t *)(pkt + 64);
       fg_tun_ipv4_chksum_start = ~*fg_tun_ipv4_chksum[i];
       fg_src_tun_ipv4[i] = (uint32_t *)(pkt + 66);
@@ -1341,8 +1312,8 @@ int send(void *par)
           ip_chksum = 0xffff;
         *fg_tun_ipv4_chksum[i] = (uint16_t)ip_chksum; //now set the IPv4 header checksum of the packet
         
-        *fg_src_ipv6[i] = lwB4_array[current_lwB4].b4_ipv6_addr; // set it with the map address
-        //chksum += lwB4_array[current_lwB4].map_addr_chksum;  // and add its checksum to the UDP checksum
+        *fg_src_ipv6[i] = lwB4_array[current_lwB4].b4_ipv6_addr; // set it with the right address
+      
 
         std::uniform_int_distribution<int> uni_dis_sport(lwB4_array[current_lwB4].min_port, lwB4_array[current_lwB4].max_port); // uniform distribution in [sport_min, sport_max]
         sp = uni_dis_sport(gen_sport);
@@ -1359,7 +1330,7 @@ int send(void *par)
       {
         ip_chksum = fg_ipv4_chksum_start; // restore the uncomplemented IPv4 header checksum to add the checksum value of the destination IPv4 address
 
-        *fg_dst_ipv4[i] = lwB4_array[current_lwB4].ipv4_addr; //set it with the CE's IPv4 address
+        *fg_dst_ipv4[i] = lwB4_array[current_lwB4].ipv4_addr; //set it with the LwB4's IPv4 address
 
         chksum += lwB4_array[current_lwB4].ipv4_addr_chksum; //add its chechsum to the UDP checksum
         ip_chksum += lwB4_array[current_lwB4].ipv4_addr_chksum; //and to the IPv4 header checksum
@@ -1429,7 +1400,7 @@ int send(void *par)
     while (!rte_eth_tx_burst(eth_id, 0, &pkt_mbuf, 1))
       ; // send out the frame
 
-    current_lwB4 = (current_lwB4 + 1) % num_of_lwB4s; // proceed to the next CE element in the CE array
+    current_lwB4 = (current_lwB4 + 1) % num_of_lwB4s; // proceed to the next LwB4 element in the LwB4 array
     i = (i + 1) % N;
   } // this is the end of the sending cycle
 
@@ -1437,7 +1408,6 @@ int send(void *par)
   elapsed_seconds = (double)(rte_rdtsc() - start_tsc) / hz;
   printf("Info: %s sender's sending took %3.10lf seconds.\n", direction, elapsed_seconds);
   if (elapsed_seconds > test_duration * TOLERANCE){
-    //rte_exit(EXIT_FAILURE, "%s sending exceeded the %3.10lf seconds limit, the test is invalid.\n", direction, test_duration * TOLERANCE);
     std::cout << direction << " sending exceeded the " << test_duration * TOLERANCE << " seconds limit, the test is invalid." << std::endl;
     return -1;
   }
@@ -1501,4 +1471,85 @@ int receive(void *par)
   }
   printf("%s frames received: %lu\n", direction, received);
   return received;
+}
+
+int Throughput::generate_lwB4Data(int argc, const char *argv[]){
+
+  std::cout << "READ CMD STARTED" << std::endl;
+  if (argc != 8)
+  {
+    std::cerr << "Input Error: Argument missmatch." << std::endl;
+    std::cerr << "The correct format is: ./build/lw4o6_tester generate_lwB4Data <ipv4> <num_ipv4s> <br_address> <b4_ipv6> <psid_len> <output_file>" << std::endl;
+    return -1;
+  }
+
+  //check paramas
+  std::string ipv4 = (std::string)argv[2];
+  int num_address = std::atoi(argv[3]);
+  std::string br_address = (std::string)argv[4];
+  std::string ipv6 = (std::string)argv[5];
+  int psid_len = std::atoi(argv[6]);
+  if (psid_len < 1 || psid_len > 16){
+    std::cerr << "Input Error: psid_length must be between 1 and 16." << std::endl;
+    return -1;
+  }
+  std::string file_name = (std::string)argv[7];
+
+  std::ofstream outfile(file_name);
+  if (!outfile) {
+    std::cerr << "Failed to create output file\n";
+    return 1;
+  }
+  
+  std::string tmp_ipv4;
+  std::string tmp_ipv6;
+  int current_psid=0;
+  int max_psid = int(pow(2,psid_len)) -1;
+  
+  for (int current_lwB4=0; current_lwB4< num_address; current_lwB4++){
+    for(current_psid; current_psid <= max_psid; current_psid++){
+      
+      //lwB4 to the conf file
+      outfile << "[ ]" << "\n";
+      outfile << "ipv4 " << ipv4 << "\n";
+      outfile << "b4-ipv6 " << ipv6 << "\n";
+      outfile << "br-address " << br_address << "\n";
+      outfile << "psid-length " << psid_len << "\n";
+      outfile << "psid " << current_psid << "\n"; 
+
+      //increase ipv6
+      struct in6_addr addr;
+      if (inet_pton(AF_INET6, ipv6.c_str(), &addr) != 1) {
+        throw std::runtime_error("Invalid IPv6 address: " + ipv6);
+      }
+
+      for (int j = 15; j >= 0; --j) {  // carry
+        if (++addr.s6_addr[j] != 0) break;
+      }
+
+      char buffer[INET6_ADDRSTRLEN];
+      if (inet_ntop(AF_INET6, &addr, buffer, INET6_ADDRSTRLEN) == nullptr) {
+        throw std::runtime_error("inet_ntop failed");
+      }
+      ipv6 = std::string(buffer);
+    }
+
+    //increase ipv4 cim
+    struct in_addr addr;
+    if (inet_pton(AF_INET, ipv4.c_str(), &addr) != 1) {
+        throw std::runtime_error("Invalid IPv4 address: " + ipv4);
+    }
+    addr.s_addr = htonl(ntohl(addr.s_addr) + 1);
+
+    char buffer[INET_ADDRSTRLEN];
+    if (inet_ntop(AF_INET, &addr, buffer, INET_ADDRSTRLEN) == nullptr) {
+        throw std::runtime_error("inet_ntop failed");
+    }
+    ipv4 = std::string(buffer);
+
+    //set psid to 0 for next ipv4
+    current_psid = 0;
+  }
+    
+  return 0;
 }

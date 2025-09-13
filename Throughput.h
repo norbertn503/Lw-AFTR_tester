@@ -23,7 +23,6 @@ class Throughput
 {
 public:
   // parameters from the configuration file
-  //struct in6_addr tester_left_ipv6;  // Tester's left interface IPv6 address (unused for now as we will use the MAP address instead)
     uint32_t tester_fw_rec_ipv4;        // Tester's right interface IPv4 address
     struct in6_addr tester_fw_send_ipv6;
 
@@ -89,13 +88,10 @@ public:
   uint16_t num_of_port_sets;      // The number of port sets that can be obtained according to the psid_length
   uint16_t num_of_ports;          // The number of ports in each port set
   uint32_t number_of_lwB4s;             // Number of simulated lwB4s
-  struct in6_addr dut_ipv6_tunnel; // The BMR’s Rule IPv6 Prefix of the MAP address
-  struct in6_addr dut_fw_ipv6;
-  uint32_t lwb4_start_ipv4;
-  uint32_t lwb4_end_ipv4;
+  struct in6_addr dut_ipv6_tunnel; // The tunnel endpoint
   lwB4_data *lwB4_array;
   std::vector<lwB4_data> tmp_lwb4data; // for reading the lwB4 data file
-
+  
   // helper functions (see their description at their definition)
   int findKey(const char *line, const char *key);
   int readConfigFile(const char *filename);
@@ -104,12 +100,14 @@ public:
   int init(const char *argv0, uint16_t leftport, uint16_t rightport);
   virtual int senderPoolSize();
   void numaCheck(uint16_t port, const char *port_side, int cpu, const char *cpu_name);
-  //void buildMapArray();
+
 
   // perform throughput measurement
   void measure(uint16_t leftport, uint16_t rightport);
 
   Throughput();
+
+  int generate_lwB4Data(int argc, const char *argv[]);  
 };
 
 // send test frame

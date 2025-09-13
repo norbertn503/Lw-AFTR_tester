@@ -247,7 +247,7 @@ int sendLatency(void *par)
     { //"forward"
       fg_pkt_mbuf[i] = mkTestIpv4inIpv6Tun(tunneled_frame_size,pkt_pool,direction,dst_mac,src_mac, src_ipv6_forw, dst_ipv6_forw,0, 0, src_ipv4_forw, dst_ipv4_forw);
       pkt = rte_pktmbuf_mtod(fg_pkt_mbuf[i], uint8_t *);
-      fg_src_ipv6[i] = (struct in6_addr *)(pkt + 22);    // The source address should be manipulated as it will be the MAP address (i.e. changing each time) in the forward direction
+      fg_src_ipv6[i] = (struct in6_addr *)(pkt + 22);    // The source address should be manipulated as it will be the right address (i.e. changing each time) in the forward direction
       // The destination address will not be manipulated as it will permenantly be the DMR IPv6 address(as done in the initilization above)
       fg_tun_ipv4_chksum[i] = (uint16_t *)(pkt + 64);
       fg_tun_ipv4_chksum_start = ~*fg_tun_ipv4_chksum[i];
@@ -299,7 +299,7 @@ int sendLatency(void *par)
       { // "forward"
         latency_frames[i] = mkLatencyTestIpv4inIpv6Tun(tunneled_frame_size,pkt_pool,direction,dst_mac,src_mac, src_ipv6_forw, dst_ipv6_forw,0, 0, src_ipv4_forw, dst_ipv4_forw, i);
         pkt = rte_pktmbuf_mtod(latency_frames[i], uint8_t *);
-        lat_fg_src_ipv6[i] = (struct in6_addr *)(pkt + 22);    // The source address should be manipulated as it will be the MAP address (i.e. changing each time) in the forward direction
+        lat_fg_src_ipv6[i] = (struct in6_addr *)(pkt + 22);    // The source address should be manipulated as it will be the right address (i.e. changing each time) in the forward direction
         // The destination address will not be manipulated as it will permenantly be the DMR IPv6 address(as done in the initilization above)
         lat_fg_tun_ipv4_chksum[i] = (uint16_t *)(pkt + 64);
         lat_fg_tun_ipv4_chksum_start = ~*lat_fg_tun_ipv4_chksum[i];
@@ -383,8 +383,7 @@ int sendLatency(void *par)
             ip_chksum = 0xffff;
           *lat_fg_tun_ipv4_chksum[latency_timestamp_no] = (uint16_t)ip_chksum; //now set the IPv4 header checksum of the packet
           
-          *lat_fg_src_ipv6[latency_timestamp_no] = lwB4_array[current_lwB4].b4_ipv6_addr; // set it with the map address
-          //chksum += lwB4_array[current_lwB4].map_addr_chksum;  // and add its checksum to the UDP checksum
+          *lat_fg_src_ipv6[latency_timestamp_no] = lwB4_array[current_lwB4].b4_ipv6_addr;
 
           std::uniform_int_distribution<int> uni_dis_sport(lwB4_array[current_lwB4].min_port, lwB4_array[current_lwB4].max_port); // uniform distribution in [sport_min, sport_max]
           sp = uni_dis_sport(gen_sport);
@@ -485,8 +484,7 @@ int sendLatency(void *par)
           
           
           //
-          *fg_src_ipv6[i] = lwB4_array[current_lwB4].b4_ipv6_addr; // set it with the map address
-          //chksum += lwB4_array[current_lwB4].map_addr_chksum;  // and add its checksum to the UDP checksum
+          *fg_src_ipv6[i] = lwB4_array[current_lwB4].b4_ipv6_addr; 
 
           std::uniform_int_distribution<int> uni_dis_sport(lwB4_array[current_lwB4].min_port, lwB4_array[current_lwB4].max_port); // uniform distribution in [sport_min, sport_max]
           sp = uni_dis_sport(gen_sport);
@@ -497,7 +495,6 @@ int sendLatency(void *par)
           sp = uni_dis_dport(gen_sport);
           *udp_dport = htons(sp); // set the source port 
           chksum += *udp_dport; // and add it to the UDP checksum
-          //std::cout << "FORWARD FRAME" << std::endl;
         }
 
         if (direction == "reverse")
