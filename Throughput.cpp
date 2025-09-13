@@ -413,8 +413,8 @@ int Throughput::readlwB4Data(const char *filename) {
         }
       } else if ( (pos = findKey(line, "psid")) >= 0 ) {
         sscanf(line+pos, "%u", &tmp_obj.psid);
-        if ( tmp_obj.psid < 0 ) {
-          std::cerr << "ERROR: PSID cannot be negative" << std::endl;
+        if ( tmp_obj.psid < 0 && (tmp_obj.psid < pow(2.0, tmp_lwb4data.at(i).psid_length)) ) {
+          std::cerr << "ERROR: PSID cannot be negative or greater then 2**psid_length" << std::endl;
           return -1;
         }
       }
