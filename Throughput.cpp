@@ -27,12 +27,11 @@ Throughput::Throughput(){
   bg_fw_dport_max = 49151;       // default value: as recommended by RFC 4814
   bg_fw_sport_min = 1024;        // default value: as recommended by RFC 4814
   bg_fw_sport_max = 65535;       // default value: as recommended by RFC 4814
-  
+  system_ports = 1;
   bg_rv_dport_min = 1;           // default value: as recommended by RFC 4814
   bg_rv_dport_max = 49151;       // default value: as recommended by RFC 4814
   bg_rv_sport_min = 1024;        // default value: as recommended by RFC 4814
   bg_rv_sport_max = 65535;       // default value: as recommended by RFC 4814
-  //lwB4_array = NULL;
 };
 
 // reports the TSC of the core (in the variable pointed by the input parameter), on which it is running
@@ -325,7 +324,13 @@ int Throughput::readConfigFile(const char *filename) {
          std::cerr << "Input Error: Bad 'DUT-Tunnel-IPv6' address." << std::endl;
         return -1;
       }
-    
+    } else if ( (pos = findKey(line, "SYSTEM-PORTS")) >= 0 ) {
+      sscanf(line+pos, "%d", &system_ports);
+      if (!(system_ports == 0 || system_ports == 1))
+      {
+        std::cerr << "Input Error: 'SYSTEM-PORTS' must be either 1 for allowing the use of system ports or 0 for not allowing it." << std::endl;
+        return -1;
+      }
     } else if ( nonComment(line) ) { // It may be too strict!
         std::cerr << "Input Error: Cannot interpret '" << filename << "' line " << line_no << ":" << std::endl;
         std::cerr << line << std::endl;
@@ -693,20 +698,6 @@ int Throughput::init(const char *argv0, uint16_t leftport, uint16_t rightport)
   start_tsc = rte_rdtsc() + hz * START_DELAY / 1000;                             // Each active sender starts sending at this time
   finish_receiving = start_tsc + hz * (test_duration + stream_timeout / 1000.0); // Each receiver stops at this time
   
-  // allocate and build a memory to store the data of all possible simulated CEs.
-  // The number of these CEs is identified as a configuration file parameter
-  
-  thread_local std::random_device rd;
-  thread_local std::mt19937 gen {rd()};
-  std::ranges::shuffle(tmp_lwb4data, gen);
-  
-  //alloc memory in the numa node what LEFTPORT using
-  lwB4_array = (lwB4_data *)rte_malloc_socket("CEs data memory", number_of_lwB4s * sizeof(lwB4_data), 0, rte_eth_dev_socket_id(LEFTPORT)); 
-    
-  if (!lwB4_array){
-    std::cerr <<  "malloc failure!! Can not create memory for lwB4 data" << std::endl;
-    return -1;
-  }
   
   for(int i = 0; i < tmp_lwb4data.size(); i++){
     num_of_port_sets = pow(2.0, tmp_lwb4data.at(i).psid_length);
@@ -715,7 +706,7 @@ int Throughput::init(const char *argv0, uint16_t leftport, uint16_t rightport)
     if (tmp_lwb4data.at(i).psid == 0){
       tmp_lwb4data.at(i).min_port = 0;
     }else {
-      tmp_lwb4data.at(i).min_port = num_of_ports * (tmp_lwb4data.at(i).psid -1);
+      tmp_lwb4data.at(i).min_port = (num_of_ports * tmp_lwb4data.at(i).psid);
     }
 
     if(tmp_lwb4data.at(i).min_port < 1024){
@@ -725,16 +716,57 @@ int Throughput::init(const char *argv0, uint16_t leftport, uint16_t rightport)
       return -1;
     }
     
-    tmp_lwb4data.at(i).max_port = tmp_lwb4data.at(i).min_port + num_of_ports -1;
+    tmp_lwb4data.at(i).max_port = tmp_lwb4data.at(i).min_port + (num_of_ports -1);
 
-    if(tmp_lwb4data.at(i).max_port > 65535){
+    if(tmp_lwb4data.at(i).max_port < 1024){
+      std::cout << "Warning: System Ports SHOULD NOT be allocated to lwB4s"  << std::endl;
+    }else if(tmp_lwb4data.at(i).max_port > 65535){
       std::cerr << "Maximum port for lwB4 can't be greater than 65535" << std::endl;
       return -1;
     }
-    tmp_lwb4data.at(i).ipv4_addr_chksum = rte_raw_cksum(&tmp_lwb4data.at(i).ipv4_addr,4); //calculate the IPv4 header checksum
+    tmp_lwb4data.at(i).ipv4_addr_chksum = rte_raw_cksum(&tmp_lwb4data.at(i).ipv4_addr,4); //calculate the IPv4 header checksum  
+  }
+
+  //delete lwB4s that are using system ports
+  if (system_ports == 0){
+    std::vector<int> index;
+    for(int i = 0; i < tmp_lwb4data.size(); i++){
+      if (tmp_lwb4data.at(i).min_port < 1023 || tmp_lwb4data.at(i).max_port < 1023)
+      {
+        index.push_back(i);
+      }
+    }
     
+    for(int i=index.size()-1; i >= 0;i--){
+      std::cout << "System ports are not allowed! Deleting lwb4 with psdi " << tmp_lwb4data.at(i).psid << std::endl;
+      std::cout << "Deleted Min port " << tmp_lwb4data.at(i).min_port << std::endl;
+      std::cout << "Deleted Max port " << tmp_lwb4data.at(i).max_port << std::endl;
+
+      tmp_lwb4data.erase(tmp_lwb4data.begin() + index.at(i));
+    }
+  }
+
+  thread_local std::random_device rd;
+  thread_local std::mt19937 gen {rd()};
+  std::ranges::shuffle(tmp_lwb4data, gen);
+
+  // allocate and build a memory to store the data of all possible simulated LwB4s.
+  //alloc memory in the numa node what LEFTPORT using
+  lwB4_array = (lwB4_data *)rte_malloc_socket("LwB4s data memory", tmp_lwb4data.size() * sizeof(lwB4_data), 0, rte_eth_dev_socket_id(LEFTPORT)); 
+  
+  if (!lwB4_array){
+    std::cerr <<  "malloc failure!! Can not create memory for lwB4 data" << std::endl;
+    return -1;
+  }
+
+  for(int i = 0; i < tmp_lwb4data.size(); i++){
+    //For easier debugging if needed
+    //std::cout << "PSID " << tmp_lwb4data.at(i).psid << std::endl;
+    //std::cout << "Min port " << tmp_lwb4data.at(i).min_port << std::endl;
+    //std::cout << "Max port " << tmp_lwb4data.at(i).max_port << std::endl;
     lwB4_array[i] = tmp_lwb4data.at(i);
   }
+
   return 0;
 } //end init
 
