@@ -8,7 +8,7 @@ results/*
 dpdk_bind
 dpdk_unbind
 *.conf
-!generated.conf
+
 !lw4o6.conf
 !lwB4Data.conf
 !example1_lwB4Data.conf
