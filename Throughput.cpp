@@ -737,12 +737,15 @@ int Throughput::init(const char *argv0, uint16_t leftport, uint16_t rightport)
       }
     }
     
-    for(int i=index.size()-1; i >= 0;i--){
+    
+    sort(index.rbegin(), index.rend());
+    for (int i : index){ std::cout << i << " " << std::endl ;}
+    for(int i : index){
       std::cout << "System ports are not allowed! Deleting lwb4 with psdi " << tmp_lwb4data.at(i).psid << std::endl;
       std::cout << "Deleted Min port " << tmp_lwb4data.at(i).min_port << std::endl;
       std::cout << "Deleted Max port " << tmp_lwb4data.at(i).max_port << std::endl;
 
-      tmp_lwb4data.erase(tmp_lwb4data.begin() + index.at(i));
+      tmp_lwb4data.erase(tmp_lwb4data.begin() + i);
     }
   }
 
